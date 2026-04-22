@@ -2,6 +2,29 @@
 
 웹페이지의 약관/개인정보처리방침을 자동 감지하고 AI로 요약해주는 Chrome 확장 프로그램입니다.
 
+## 설계
+```
+웹페이지
+  ↓
+content script
+  - DOM 감시
+  - 약관 후보 탐색
+  - 점수 기반 감지
+  - plain text 추출
+  - 플로팅 버튼 표시
+  ↓
+background service worker
+  - 약관 데이터 저장
+  - 탭별 상태 관리
+  - 사이드패널 열기
+  - 요약/채팅 API 중계
+  ↓
+side panel React app
+  - 감지된 약관 미리보기
+  - 요약 요청
+  - 챗봇 Q&A
+```
+
 ## 폴더 구조
 
 ```
@@ -62,3 +85,4 @@ npm run dev   # 파일 변경 감지 후 자동 빌드
 
 `src/background/api/client.ts`에서 `useMock` 설정을 변경하거나,
 `chrome.storage.local`의 `settings.useMock`을 `false`로 설정하면 됩니다.
+======
