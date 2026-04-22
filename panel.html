@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>약관 요약 AI</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { overflow: hidden; }
+
+      /* ChatWindow 타이핑 애니메이션 */
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+      @keyframes blink {
+        0%, 80%, 100% { opacity: 0.2; }
+        40% { opacity: 1; }
+      }
+      span + span + span { animation-delay: 0.4s; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="dist/panel.js"></script>
+  </body>
+</html>
