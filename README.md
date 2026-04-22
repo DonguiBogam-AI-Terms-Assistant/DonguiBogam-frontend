@@ -82,7 +82,8 @@ npm run dev   # 파일 변경 감지 후 자동 빌드
 ```
 
 ## Mock → 실제 API 전환
-
+```
 `src/background/api/client.ts`에서 `useMock` 설정을 변경하거나,
 `chrome.storage.local`의 `settings.useMock`을 `false`로 설정하면 됩니다.
+```
 ======
