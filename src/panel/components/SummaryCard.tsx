@@ -4,33 +4,14 @@ interface Props {
   summary: SummarizeResponse;
 }
 
-const RISK_CONFIG = {
-  low: { label: '낮음', color: '#16a34a', bg: '#f0fdf4' },
-  medium: { label: '보통', color: '#d97706', bg: '#fffbeb' },
-  high: { label: '높음', color: '#dc2626', bg: '#fef2f2' },
-};
-
 export function SummaryCard({ summary }: Props) {
-  const risk = RISK_CONFIG[summary.riskLevel];
-
   return (
     <div style={styles.card}>
       <div style={styles.header}>
         <span style={styles.title}>AI 요약</span>
-        <span style={{ ...styles.badge, color: risk.color, background: risk.bg }}>
-          위험도 {risk.label}
-        </span>
       </div>
 
       <p style={styles.summaryText}>{summary.summary}</p>
-
-      <ul style={styles.keyPoints}>
-        {summary.keyPoints.map((point, i) => (
-          <li key={i} style={styles.keyPoint}>
-            {point}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

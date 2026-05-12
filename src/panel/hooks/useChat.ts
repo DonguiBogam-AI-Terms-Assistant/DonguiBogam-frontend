@@ -6,7 +6,8 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { ChatTurn, ErrorPayload } from '@shared/types';
+import type { ChatTurn } from '@shared/types';
+import type { ErrorPayload } from '@shared/messages';
 import { sendMessage } from '@shared/messages';
 import { generateId } from '@shared/utils';
 

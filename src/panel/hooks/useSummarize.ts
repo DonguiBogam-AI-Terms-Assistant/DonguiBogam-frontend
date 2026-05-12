@@ -3,7 +3,8 @@
  */
 
 import { useState, useCallback } from 'react';
-import type { SummarizeResponse, ErrorPayload } from '@shared/types';
+import type { SummarizeResponse } from '@shared/types';
+import type { ErrorPayload } from '@shared/messages';
 import { sendMessage } from '@shared/messages';
 
 interface UseSummarizeResult {

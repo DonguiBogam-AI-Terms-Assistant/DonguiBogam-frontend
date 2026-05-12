@@ -82,7 +82,12 @@ export function App() {
           </button>
         )}
 
-        {summaryError && <p style={styles.inlineError}>{summaryError}</p>}
+        {summaryError && (
+          <p style={styles.inlineError}>
+            {summaryError.code ? `오류 (${summaryError.code}): ` : ''}
+            {summaryError.message}
+          </p>
+        )}
 
         {/* 구분선 */}
         <div style={styles.divider} />
@@ -92,7 +97,10 @@ export function App() {
 
         {chatError && (
           <div style={styles.errorBanner}>
-            <span>{chatError}</span>
+            <span>
+              {chatError.code ? `오류 (${chatError.code}): ` : ''}
+              {chatError.message}
+            </span>
             <button style={styles.errorClose} onClick={clearError}>✕</button>
           </div>
         )}
