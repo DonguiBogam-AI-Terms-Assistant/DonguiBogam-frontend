@@ -3,10 +3,21 @@
  * 모든 chrome.runtime.onMessage를 타입별로 분기 처리
  */
 
-import type { ExtMessage, TermsDataPayload, ChatResponsePayload, SummarizeResponsePayload, ErrorPayload } from '@shared/messages';
-import type { TabState } from '@shared/types';
+import type {
+  ExtMessage,
+  TermsDataPayload,
+  ChatResponsePayload,
+  SummarizeResponsePayload,
+  ErrorPayload,
+} from '@shared/messages';
+import type {
+  TabState,
+  ChatQueryRequest,
+  ChatFollowupRequest,
+  ChatQueryResponse,
+} from '@shared/types';
 import { getTabState, setTabState } from './storageManager';
-import { summarize, chat } from './api/client';
+import { summarize, chatQuery } from './api/client';
 import { generateId } from '@shared/utils';
 
 type SendResponse = (response: ExtMessage) => void;
@@ -36,6 +47,7 @@ async function handleMessage(
           tabId,
           terms: message.payload.terms,
           chatHistory: [],
+          sessionId: null, // 새 세션 초기화
           status: 'detected',
         };
         await setTabState(state);
@@ -73,34 +85,79 @@ async function handleMessage(
         const state = await getTabState(tabId);
 
         if (!state?.terms) {
-          const payload: ErrorPayload = { message: '약관 데이터가 없습니다.', code: 'NO_TERMS' };
+          const payload: ErrorPayload = {
+            code: 'no_terms_data',
+            message: '약관 데이터가 없습니다.',
+          };
           sendResponse({ type: 'ERROR', payload });
           return;
         }
 
-        const response = await chat(userMessage, state.terms.plainText, state.chatHistory);
+        try {
+          let chatResponse: ChatQueryResponse;
 
-        // 채팅 히스토리에 user + assistant 턴 추가
-        const userTurn = {
-          id: generateId(),
-          role: 'user' as const,
-          content: userMessage,
-          timestamp: Date.now(),
-        };
-        const assistantTurn = {
-          id: generateId(),
-          role: 'assistant' as const,
-          content: response.reply,
-          timestamp: Date.now(),
-        };
+          // 첫 요청 vs 후속 요청 분기
+          if (!state.sessionId) {
+            // 첫 요청: canonical_url, raw_text, query 포함
+            const request: ChatQueryRequest = {
+              canonical_url: state.terms.sourceUrl,
+              raw_text: state.terms.plainText,
+              query: userMessage,
+            };
+            chatResponse = await chatQuery(request);
 
-        await setTabState({
-          ...state,
-          chatHistory: [...state.chatHistory, userTurn, assistantTurn],
-        });
+            // 새 sessionId 저장
+            await setTabState({
+              ...state,
+              sessionId: chatResponse.session_id,
+            });
+          } else {
+            // 후속 요청: session_id, query만 포함
+            const request: ChatFollowupRequest = {
+              session_id: state.sessionId,
+              query: userMessage,
+            };
+            chatResponse = await chatQuery(request);
+          }
 
-        const payload: ChatResponsePayload = { turn: assistantTurn };
-        sendResponse({ type: 'CHAT_RESPONSE', payload });
+          // 채팅 히스토리에 user + assistant 턴 추가
+          const userTurn = {
+            id: generateId(),
+            role: 'user' as const,
+            content: userMessage,
+            timestamp: Date.now(),
+          };
+          const assistantTurn = {
+            id: generateId(),
+            role: 'assistant' as const,
+            content: chatResponse.answer,
+            timestamp: Date.now(),
+          };
+
+          await setTabState({
+            ...state,
+            sessionId: chatResponse.session_id, // 갱신 (안전성)
+            chatHistory: [...state.chatHistory, userTurn, assistantTurn],
+          });
+
+          const payload: ChatResponsePayload = {
+            turn: assistantTurn,
+            sessionId: chatResponse.session_id,
+          };
+          sendResponse({ type: 'CHAT_RESPONSE', payload });
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : '채팅 요청 실패';
+          // Backend 에러 형식 파싱 시도
+          let code = 'chat_error';
+          if (err instanceof Error && err.message.includes('document_not_found')) {
+            code = 'document_not_found';
+          }
+          const payload: ErrorPayload = {
+            code,
+            message: errorMessage,
+          };
+          sendResponse({ type: 'ERROR', payload });
+        }
         break;
       }
 
@@ -109,14 +166,36 @@ async function handleMessage(
         const state = await getTabState(tabId);
 
         if (!state?.terms) {
-          const payload: ErrorPayload = { message: '약관 데이터가 없습니다.', code: 'NO_TERMS' };
+          const payload: ErrorPayload = {
+            code: 'no_terms_data',
+            message: '약관 데이터가 없습니다.',
+          };
           sendResponse({ type: 'ERROR', payload });
           return;
         }
 
-        const result = await summarize(state.terms.plainText);
-        const payload: SummarizeResponsePayload = { result };
-        sendResponse({ type: 'SUMMARIZE_RESPONSE', payload });
+        try {
+          // Backend 스펙에 맞게 필드명 변환
+          const result = await summarize(
+            state.terms.sourceUrl, // canonical_url
+            state.terms.title, // page_title
+            state.terms.plainText // raw_text
+          );
+
+          const payload: SummarizeResponsePayload = { result };
+          sendResponse({ type: 'SUMMARIZE_RESPONSE', payload });
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : '요약 요청 실패';
+          let code = 'summarize_error';
+          if (err instanceof Error && err.message.includes('raw_text_too_short')) {
+            code = 'raw_text_too_short';
+          }
+          const payload: ErrorPayload = {
+            code,
+            message: errorMessage,
+          };
+          sendResponse({ type: 'ERROR', payload });
+        }
         break;
       }
 
@@ -125,7 +204,10 @@ async function handleMessage(
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류';
-    const payload: ErrorPayload = { message: errorMessage };
+    const payload: ErrorPayload = {
+      code: 'internal_error',
+      message: errorMessage,
+    };
     sendResponse({ type: 'ERROR', payload });
   }
 }

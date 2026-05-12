@@ -38,6 +38,7 @@ export interface ChatRequestPayload {
 
 export interface ChatResponsePayload {
   turn: ChatTurn;
+  sessionId: string; // Backend에서 받은 session_id
 }
 
 export interface SummarizeRequestPayload {

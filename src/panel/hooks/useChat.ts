@@ -2,17 +2,19 @@
  * 채팅 상태 관리 훅
  * - 메시지 전송 / 응답 수신
  * - 로딩 상태 관리
+ * - Backend session_id 관리
  */
 
 import { useState, useCallback } from 'react';
-import type { ChatTurn } from '@shared/types';
+import type { ChatTurn, ErrorPayload } from '@shared/types';
 import { sendMessage } from '@shared/messages';
 import { generateId } from '@shared/utils';
 
 interface UseChatResult {
   history: ChatTurn[];
   isLoading: boolean;
-  error: string | null;
+  error: { code?: string; message: string } | null;
+  sessionId: string | null;
   sendUserMessage: (message: string) => Promise<void>;
   clearError: () => void;
 }
@@ -22,8 +24,9 @@ export function useChat(
   initialHistory: ChatTurn[] = []
 ): UseChatResult {
   const [history, setHistory] = useState<ChatTurn[]>(initialHistory);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ code?: string; message: string } | null>(null);
 
   const sendUserMessage = useCallback(
     async (message: string) => {
@@ -50,22 +53,36 @@ export function useChat(
         if (!response) throw new Error('응답이 없습니다.');
 
         if (response.type === 'CHAT_RESPONSE') {
-          setHistory((prev) => [...prev, response.payload.turn]);
+          const { turn, sessionId: newSessionId } = response.payload;
+          if (newSessionId && !sessionId) {
+            setSessionId(newSessionId);
+          }
+          setHistory((prev) => [...prev, turn]);
         } else if (response.type === 'ERROR') {
-          throw new Error(response.payload.message);
+          const errorPayload = response.payload as ErrorPayload;
+          throw {
+            code: errorPayload.code,
+            message: errorPayload.message,
+          };
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : '메시지 전송 실패');
+        if (typeof err === 'object' && err !== null && 'code' in err) {
+          setError(err as { code?: string; message: string });
+        } else {
+          setError({
+            message: err instanceof Error ? err.message : '메시지 전송 실패',
+          });
+        }
         // 실패 시 사용자 메시지 제거
         setHistory((prev) => prev.filter((t) => t.id !== userTurn.id));
       } finally {
         setIsLoading(false);
       }
     },
-    [tabId, isLoading]
+    [tabId, isLoading, sessionId]
   );
 
   const clearError = useCallback(() => setError(null), []);
 
-  return { history, isLoading, error, sendUserMessage, clearError };
+  return { history, isLoading, error, sessionId, sendUserMessage, clearError };
 }
