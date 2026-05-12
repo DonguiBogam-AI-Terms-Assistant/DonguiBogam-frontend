@@ -23,6 +23,7 @@ export interface TabState {
   tabId: number;
   terms: TermsDocument | null;
   chatHistory: ChatTurn[];
+  sessionId: string | null; // Backend 채팅 세션 ID
   status: 'idle' | 'detected' | 'panel_open';
 }
 
@@ -41,23 +42,33 @@ export interface UserSettings {
 
 // ─── API 타입 ──────────────────────────────────────────────────
 
+/** 약관 요약 요청 */
 export interface SummarizeRequest {
-  plainText: string;
-  fingerprint: string;
+  canonical_url: string; // http/https URL
+  page_title: string; // 1~300자
+  raw_text: string; // 1~200,000자
 }
 
+/** 약관 요약 응답 (MVP: summary만 포함) */
 export interface SummarizeResponse {
   summary: string;
-  keyPoints: string[];
-  riskLevel: 'low' | 'medium' | 'high';
 }
 
-export interface ChatRequest {
-  userMessage: string;
-  plainText: string;
-  history: ChatTurn[];
+/** 첫 채팅 요청 */
+export interface ChatQueryRequest {
+  canonical_url: string;
+  raw_text: string;
+  query: string; // 1~1,000자
 }
 
-export interface ChatResponse {
-  reply: string;
+/** 후속 채팅 요청 */
+export interface ChatFollowupRequest {
+  session_id: string;
+  query: string; // 1~1,000자
+}
+
+/** 채팅 응답 (첫/후속 동일) */
+export interface ChatQueryResponse {
+  session_id: string; // 후속 요청에 사용
+  answer: string;
 }

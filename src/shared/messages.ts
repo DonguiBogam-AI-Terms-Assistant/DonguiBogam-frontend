@@ -49,8 +49,8 @@ export interface SummarizeResponsePayload {
 }
 
 export interface ErrorPayload {
-  message: string;
-  code?: string;
+  code: string; // error code (e.g., 'document_not_found')
+  message: string; // Human-readable message
 }
 
 // ─── 메시지 유니온 타입 ────────────────────────────────────────

@@ -1,46 +1,96 @@
 /**
  * API 클라이언트
  * useMock 설정에 따라 mock/real API를 투명하게 전환
+ * Backend: http://localhost:8000 (개발) 또는 설정된 BASE_URL
  */
 
-import type { SummarizeResponse, ChatResponse, ChatTurn } from '@shared/types';
-import { mockSummarize, mockChat } from './mockApi';
+import type {
+  SummarizeResponse,
+  ChatQueryResponse,
+  ChatQueryRequest,
+  ChatFollowupRequest,
+} from '@shared/types';
+import {
+  mockSummarize,
+  mockChatQuery,
+  mockChatFollowup,
+} from './mockApi';
 import { getSettings } from '../storageManager';
 
-export async function summarize(plainText: string): Promise<SummarizeResponse> {
-  const { useMock, language: _language } = await getSettings();
+const DEFAULT_API_BASE_URL = 'http://localhost:8000';
 
-  if (useMock) {
-    return mockSummarize(plainText);
-  }
-
-  // TODO: 실제 API 엔드포인트로 교체
-  const res = await fetch('https://your-api.example.com/summarize', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ plainText }),
-  });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json() as Promise<SummarizeResponse>;
+async function getApiBaseUrl(): Promise<string> {
+  // TODO: settings에서 API URL을 읽어올 수 있도록 확장
+  return DEFAULT_API_BASE_URL;
 }
 
-export async function chat(
-  userMessage: string,
-  plainText: string,
-  history: ChatTurn[]
-): Promise<ChatResponse> {
+/**
+ * 약관 요약 요청
+ * POST /documents/summary
+ */
+export async function summarize(
+  canonical_url: string,
+  page_title: string,
+  raw_text: string
+): Promise<SummarizeResponse> {
   const { useMock } = await getSettings();
 
   if (useMock) {
-    return mockChat(userMessage, plainText, history);
+    return mockSummarize(canonical_url, page_title, raw_text);
   }
 
-  // TODO: 실제 API 엔드포인트로 교체
-  const res = await fetch('https://your-api.example.com/chat', {
+  const baseUrl = await getApiBaseUrl();
+  const res = await fetch(`${baseUrl}/documents/summary`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ userMessage, plainText, history }),
+    body: JSON.stringify({
+      canonical_url,
+      page_title,
+      raw_text,
+    }),
   });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
-  return res.json() as Promise<ChatResponse>;
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(
+      errorData.message || `API error: ${res.status}`
+    );
+  }
+
+  return res.json() as Promise<SummarizeResponse>;
+}
+
+/**
+ * 채팅 쿼리 (첫 요청 또는 후속 요청)
+ * POST /chat/query
+ */
+export async function chatQuery(
+  request: ChatQueryRequest | ChatFollowupRequest
+): Promise<ChatQueryResponse> {
+  const { useMock } = await getSettings();
+
+  if (useMock) {
+    // 첫 요청과 후속 요청 구분
+    if ('canonical_url' in request) {
+      return mockChatQuery(request as ChatQueryRequest);
+    } else {
+      return mockChatFollowup(request as ChatFollowupRequest);
+    }
+  }
+
+  const baseUrl = await getApiBaseUrl();
+  const res = await fetch(`${baseUrl}/chat/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(
+      errorData.message || `API error: ${res.status}`
+    );
+  }
+
+  return res.json() as Promise<ChatQueryResponse>;
 }
