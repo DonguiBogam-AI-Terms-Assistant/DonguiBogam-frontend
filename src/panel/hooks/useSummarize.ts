@@ -1,8 +1,4 @@
-/**
- * 약관 요약 요청 훅
- */
-
-import { useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SummarizeResponse } from '@shared/types';
 import type { ErrorPayload } from '@shared/messages';
 import { sendMessage } from '@shared/messages';
@@ -18,10 +14,18 @@ export function useSummarize(tabId: number | null): UseSummarizeResult {
   const [summary, setSummary] = useState<SummarizeResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
+  const inFlightRef = useRef(false);
+
+  useEffect(() => {
+    setSummary(null);
+    setError(null);
+    inFlightRef.current = false;
+  }, [tabId]);
 
   const requestSummary = useCallback(async () => {
-    if (!tabId || isLoading) return;
+    if (!tabId || inFlightRef.current) return;
 
+    inFlightRef.current = true;
     setIsLoading(true);
     setError(null);
 
@@ -31,7 +35,7 @@ export function useSummarize(tabId: number | null): UseSummarizeResult {
         payload: { tabId },
       });
 
-      if (!response) throw new Error('응답이 없습니다.');
+      if (!response) throw new Error('No response received.');
 
       if (response.type === 'SUMMARIZE_RESPONSE') {
         setSummary(response.payload.result);
@@ -47,13 +51,14 @@ export function useSummarize(tabId: number | null): UseSummarizeResult {
         setError(err as { code?: string; message: string });
       } else {
         setError({
-          message: err instanceof Error ? err.message : '요약 실패',
+          message: err instanceof Error ? err.message : 'Failed to summarize.',
         });
       }
     } finally {
+      inFlightRef.current = false;
       setIsLoading(false);
     }
-  }, [tabId, isLoading]);
+  }, [tabId]);
 
   return { summary, isLoading, error, requestSummary };
 }

@@ -9,7 +9,6 @@ interface Props {
 export function ChatWindow({ history, isLoading }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // 새 메시지 시 자동 스크롤
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, isLoading]);
@@ -17,15 +16,34 @@ export function ChatWindow({ history, isLoading }: Props) {
   if (history.length === 0 && !isLoading) {
     return (
       <div style={styles.empty}>
-        <span style={styles.emptyIcon}>💬</span>
-        <p style={styles.emptyText}>약관에 대해 궁금한 점을 물어보세요.</p>
-        <p style={styles.emptyHint}>예: "제3자 제공 조항이 있나요?", "보관 기간이 얼마나 되나요?"</p>
+        <div style={styles.emptyContent}>
+          <span style={styles.emptyIcon}>{'\uD83D\uDCAC'}</span>
+          <p style={styles.emptyText}>{'\uC57D\uAD00\uC5D0 \uB300\uD574 \uAD81\uAE08\uD55C \uC810\uC744 \uBB3C\uC5B4\uBCF4\uC138\uC694'}</p>
+          <p style={styles.emptyHint}>
+            {'\uC608: "\uC81C3\uC790 \uC81C\uACF5 \uC870\uD56D\uC774 \uC788\uB098\uC694?", "\uBCF4\uAD00 \uAE30\uAC04\uC740 \uC5BC\uB9C8\uB098 \uB418\uB098\uC694?"'}
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
     <div style={styles.container}>
+      <style>
+        {`
+          @keyframes typingWave {
+            0%, 60%, 100% {
+              transform: translateY(0);
+              opacity: 0.45;
+            }
+            30% {
+              transform: translateY(-5px);
+              opacity: 1;
+            }
+          }
+        `}
+      </style>
+
       {history.map((turn) => (
         <div
           key={turn.id}
@@ -47,7 +65,9 @@ export function ChatWindow({ history, isLoading }: Props) {
       {isLoading && (
         <div style={{ ...styles.bubble, ...styles.assistantBubble }}>
           <span style={styles.typing}>
-            <span>●</span><span>●</span><span>●</span>
+            <span style={{ ...styles.typingDot, animationDelay: '0s' }}>{'\u25CF'}</span>
+            <span style={{ ...styles.typingDot, animationDelay: '0.12s' }}>{'\u25CF'}</span>
+            <span style={{ ...styles.typingDot, animationDelay: '0.24s' }}>{'\u25CF'}</span>
           </span>
         </div>
       )}
@@ -62,31 +82,46 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
     padding: '8px 0',
+    boxSizing: 'border-box',
   },
   empty: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '32px 16px',
+    position: 'relative',
+    flex: 1,
+    minHeight: 0,
+    overflow: 'hidden',
+    padding: '12px 16px',
+    boxSizing: 'border-box',
     textAlign: 'center',
   },
+  emptyContent: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    width: '100%',
+    transform: 'translate(-50%, -50%)',
+    padding: '0 16px',
+    boxSizing: 'border-box',
+  },
   emptyIcon: {
-    fontSize: 32,
-    marginBottom: 8,
+    fontSize: 28,
+    lineHeight: 1,
+    marginBottom: 10,
   },
   emptyText: {
     fontSize: 13,
     color: '#374151',
-    margin: '0 0 4px',
+    margin: '0 0 6px',
     fontWeight: 500,
   },
   emptyHint: {
     fontSize: 11,
     color: '#9ca3af',
     margin: 0,
-    lineHeight: 1.6,
+    lineHeight: 1.5,
   },
   bubble: {
     maxWidth: '85%',
@@ -124,5 +159,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 8,
     color: '#9ca3af',
     padding: '4px 0',
+  },
+  typingDot: {
+    display: 'inline-block',
+    animation: 'typingWave 0.9s ease-in-out infinite',
   },
 };

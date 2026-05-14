@@ -1,16 +1,10 @@
-/**
- * Mock API — backend 준비 전까지 사용
- * Backend API와 동일한 인터페이스를 구현하므로 교체가 쉬움
- */
-
 import type {
-  SummarizeResponse,
-  ChatQueryResponse,
-  ChatQueryRequest,
   ChatFollowupRequest,
+  ChatQueryRequest,
+  ChatQueryResponse,
+  SummarizeResponse,
 } from '@shared/types';
-import { delay } from '@shared/utils';
-import { generateId } from '@shared/utils';
+import { delay, generateId } from '@shared/utils';
 
 export async function mockSummarize(
   canonical_url: string,
@@ -19,8 +13,7 @@ export async function mockSummarize(
 ): Promise<SummarizeResponse> {
   await delay(900);
 
-  // 백엔드로 전송될 payload 확인용 로그
-  console.log('[약관AI] 백엔드 전송 payload (documents/summary):', {
+  console.log('[TermsAI] mock summary payload:', {
     canonical_url,
     page_title,
     raw_text_length: raw_text.length,
@@ -28,40 +21,40 @@ export async function mockSummarize(
   });
 
   const charCount = raw_text.length;
-  const hasThirdParty = /제3자|third.party/i.test(raw_text);
-  const hasMarketing = /마케팅|광고|홍보/i.test(raw_text);
+  const hasThirdParty = /third.?party|3rd.?party|third-party|third party/i.test(raw_text);
 
   return {
-    summary: `이 약관은 총 ${charCount.toLocaleString()}자로 구성되어 있습니다. 개인정보 수집·이용에 관한 내용을 포함하고 있으며${hasThirdParty ? ', 제3자 제공 조항이 포함되어 있습니다' : ''}.`,
+    summary: [
+      '# Terms Summary',
+      '',
+      `This document contains **${charCount.toLocaleString()} characters**.`,
+      hasThirdParty
+        ? '- It appears to include third-party sharing language.'
+        : '- No obvious third-party sharing language was detected in the mock scan.',
+      '- Review retention periods, collected data, and opt-out clauses carefully.',
+    ].join('\\n'),
   };
 }
 
-export async function mockChatQuery(
-  request: ChatQueryRequest
-): Promise<ChatQueryResponse> {
+export async function mockChatQuery(request: ChatQueryRequest): Promise<ChatQueryResponse> {
   await delay(600);
 
-  // 백엔드로 전송될 payload 확인용 로그
-  console.log('[약관AI] 백엔드 전송 payload (chat/query - 첫 요청):', {
+  console.log('[TermsAI] mock chat payload:', {
     canonical_url: request.canonical_url,
     raw_text_length: request.raw_text.length,
     query: request.query,
   });
 
-  const sessionId = `sess_${generateId()}`;
   return {
-    session_id: sessionId,
+    session_id: `sess_${generateId()}`,
     answer: generateMockAnswer(request.query, request.raw_text),
   };
 }
 
-export async function mockChatFollowup(
-  request: ChatFollowupRequest
-): Promise<ChatQueryResponse> {
+export async function mockChatFollowup(request: ChatFollowupRequest): Promise<ChatQueryResponse> {
   await delay(600);
 
-  // 백엔드로 전송될 payload 확인용 로그
-  console.log('[약관AI] 백엔드 전송 payload (chat/query - 후속 요청):', {
+  console.log('[TermsAI] mock chat followup payload:', {
     session_id: request.session_id,
     query: request.query,
   });
@@ -72,28 +65,27 @@ export async function mockChatFollowup(
   };
 }
 
-/**
- * Mock 답변 생성
- */
 function generateMockAnswer(query: string, plainText: string): string {
   const lower = query.toLowerCase();
 
-  // 간단한 키워드 기반 mock 응답
-  if (/요약|summary/i.test(lower)) {
-    return `이 약관의 핵심은 개인정보 수집·이용 동의입니다. 주요 내용은 수집 항목, 이용 목적, 보관 기간입니다.`;
-  }
-  if (/제3자|third/i.test(lower)) {
-    const has = plainText && /제3자|third.party/i.test(plainText);
-    return has
-      ? '⚠️ 이 약관에는 제3자 제공 조항이 포함되어 있습니다. 제공 대상과 목적을 꼭 확인하세요.'
-      : '이 약관에는 제3자 제공 조항이 없습니다.';
-  }
-  if (/보관|기간|retention/i.test(lower)) {
-    return '개인정보 보관 기간은 서비스 이용 계약 종료 후 3년입니다. (mock 응답)';
-  }
-  if (/거부|opt.out|동의 안/i.test(lower)) {
-    return '동의를 거부할 경우 서비스 이용이 제한될 수 있습니다. 필수 항목과 선택 항목을 구분해서 확인하세요.';
+  if (/summary|summarize|\uC694\uC57D/i.test(lower)) {
+    return 'This mock answer summarizes the main terms: data collection, usage purpose, retention period, and sharing clauses.';
   }
 
-  return `"${query}"에 대한 답변입니다. 실제 AI 연동 후 정확한 답변을 제공할 예정입니다. (mock 응답)`;
+  if (/third|3rd|\uC81C3\uC790/i.test(lower)) {
+    const hasThirdParty = /third.?party|3rd.?party|third-party|third party/i.test(plainText);
+    return hasThirdParty
+      ? 'Third-party sharing language appears to be present. Please review the recipient and purpose clauses.'
+      : 'No obvious third-party sharing language was detected in this mock answer.';
+  }
+
+  if (/retention|period|\uBCF4\uAD00|\uAE30\uAC04/i.test(lower)) {
+    return 'The mock answer suggests checking whether the retention period is tied to account deletion, legal obligations, or service termination.';
+  }
+
+  if (/opt.?out|withdraw|\uAC70\uBD80|\uCCA0\uD68C/i.test(lower)) {
+    return 'If consent is withdrawn, some services may be limited. Separate required and optional consent items should be reviewed.';
+  }
+
+  return `Mock answer for "${query}". A real backend response will provide a more precise analysis.`;
 }

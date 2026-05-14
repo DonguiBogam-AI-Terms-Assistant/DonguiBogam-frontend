@@ -40,7 +40,7 @@ export async function setSummaryCache(fingerprint: string, summary: string): Pro
 
 export async function getSettings(): Promise<UserSettings> {
   const result = await chrome.storage.local.get('settings');
-  return (result['settings'] as UserSettings) ?? { language: 'ko', useMock: true };
+  return (result['settings'] as UserSettings) ?? { language: 'ko', useMock: false };
 }
 
 export async function setSettings(settings: Partial<UserSettings>): Promise<void> {

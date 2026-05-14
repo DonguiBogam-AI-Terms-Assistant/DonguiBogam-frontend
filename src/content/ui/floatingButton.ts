@@ -1,8 +1,3 @@
-/**
- * 약관 감지 시 우하단에 표시되는 플로팅 원형 버튼
- * Shadow DOM으로 페이지 스타일과 완전히 격리
- */
-
 const BUTTON_ID = 'terms-ai-floating-host';
 
 let hostEl: HTMLElement | null = null;
@@ -83,7 +78,6 @@ const BUTTON_HTML = `
 `;
 
 export function showFloatingButton(onClick: () => void): void {
-  // 이미 표시 중이면 콜백만 교체
   if (hostEl) {
     onClickCallback = onClick;
     return;

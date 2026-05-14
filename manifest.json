@@ -16,9 +16,6 @@
       "run_at": "document_idle"
     }
   ],
-  "side_panel": {
-    "default_path": "panel.html"
-  },
   "action": {
     "default_title": "약관 요약 AI"
   }

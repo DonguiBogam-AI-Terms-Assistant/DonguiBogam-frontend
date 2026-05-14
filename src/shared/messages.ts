@@ -1,22 +1,24 @@
-import type { TermsDocument, ChatTurn, TabState, SummarizeResponse } from './types';
-
-// ─── 메시지 타입 열거 ──────────────────────────────────────────
+import type { ChatTurn, SummarizeResponse, TabState, TermsDocument } from './types';
 
 export type MessageType =
-  | 'TERMS_DETECTED'      // content → background: 약관 감지됨
-  | 'OPEN_PANEL'          // content → background: 패널 열기 요청
-  | 'PANEL_READY'         // panel → background: 패널 초기화 완료
-  | 'TERMS_DATA'          // background → panel: 약관 데이터 응답
-  | 'CHAT_REQUEST'        // panel → background: 채팅 메시지 전송
-  | 'CHAT_RESPONSE'       // background → panel: 채팅 응답
-  | 'SUMMARIZE_REQUEST'   // panel → background: 요약 요청
-  | 'SUMMARIZE_RESPONSE'  // background → panel: 요약 응답
-  | 'ERROR';              // 에러 전파
-
-// ─── 페이로드 타입 ─────────────────────────────────────────────
+  | 'TERMS_DETECTED'
+  | 'TOGGLE_PANEL'
+  | 'OPEN_PANEL'
+  | 'PANEL_READY'
+  | 'TERMS_DATA'
+  | 'CHAT_REQUEST'
+  | 'CHAT_RESPONSE'
+  | 'SUMMARIZE_REQUEST'
+  | 'SUMMARIZE_RESPONSE'
+  | 'ACK'
+  | 'ERROR';
 
 export interface TermsDetectedPayload {
   terms: TermsDocument;
+}
+
+export interface TogglePanelPayload {
+  tabId: number;
 }
 
 export interface OpenPanelPayload {
@@ -38,7 +40,7 @@ export interface ChatRequestPayload {
 
 export interface ChatResponsePayload {
   turn: ChatTurn;
-  sessionId: string; // Backend에서 받은 session_id
+  sessionId: string;
 }
 
 export interface SummarizeRequestPayload {
@@ -50,14 +52,13 @@ export interface SummarizeResponsePayload {
 }
 
 export interface ErrorPayload {
-  code: string; // error code (e.g., 'document_not_found')
-  message: string; // Human-readable message
+  code: string;
+  message: string;
 }
-
-// ─── 메시지 유니온 타입 ────────────────────────────────────────
 
 export type ExtMessage =
   | { type: 'TERMS_DETECTED'; payload: TermsDetectedPayload }
+  | { type: 'TOGGLE_PANEL'; payload: TogglePanelPayload }
   | { type: 'OPEN_PANEL'; payload: OpenPanelPayload }
   | { type: 'PANEL_READY'; payload: PanelReadyPayload }
   | { type: 'TERMS_DATA'; payload: TermsDataPayload }
@@ -65,18 +66,29 @@ export type ExtMessage =
   | { type: 'CHAT_RESPONSE'; payload: ChatResponsePayload }
   | { type: 'SUMMARIZE_REQUEST'; payload: SummarizeRequestPayload }
   | { type: 'SUMMARIZE_RESPONSE'; payload: SummarizeResponsePayload }
+  | { type: 'ACK'; payload: Record<string, never> }
   | { type: 'ERROR'; payload: ErrorPayload };
 
-// ─── 헬퍼 ─────────────────────────────────────────────────────
+export function sendMessage<T extends ExtMessage>(message: T): Promise<ExtMessage | undefined> {
+  if (!chrome.runtime?.id) {
+    return Promise.resolve(undefined);
+  }
 
-/** type-safe 메시지 전송 (content/panel → background) */
-export function sendMessage<T extends ExtMessage>(
-  message: T
-): Promise<ExtMessage | undefined> {
-  return chrome.runtime.sendMessage(message);
+  try {
+    return chrome.runtime.sendMessage(message);
+  } catch (err) {
+    return Promise.reject(err);
+  }
 }
 
-/** background → 특정 탭의 content script로 전송 */
 export function sendToTab(tabId: number, message: ExtMessage): Promise<void> {
-  return chrome.tabs.sendMessage(tabId, message);
+  if (!chrome.runtime?.id) {
+    return Promise.resolve();
+  }
+
+  try {
+    return chrome.tabs.sendMessage(tabId, message);
+  } catch (err) {
+    return Promise.reject(err);
+  }
 }

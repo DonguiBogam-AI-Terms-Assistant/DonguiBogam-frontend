@@ -94,3 +94,29 @@ export async function chatQuery(
 
   return res.json() as Promise<ChatQueryResponse>;
 }
+
+export async function notifyPanelEvent(event: {
+  event: 'opened' | 'closed';
+  tab_id?: number;
+  window_id?: number;
+  path?: string;
+  reason?: string;
+  timestamp: number;
+}): Promise<void> {
+  const { useMock } = await getSettings();
+  if (useMock) {
+    console.log('[TermsAI] mock panel event:', event);
+    return;
+  }
+
+  const baseUrl = await getApiBaseUrl();
+  const res = await fetch(`${baseUrl}/panel/events`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(event),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Panel event API error: ${res.status}`);
+  }
+}
