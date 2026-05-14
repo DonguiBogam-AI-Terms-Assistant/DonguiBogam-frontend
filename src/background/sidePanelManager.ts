@@ -1,4 +1,5 @@
 import { notifyPanelEvent } from './api/client';
+import { getTabState } from './storageManager';
 
 const PANEL_PATH = 'panel.html';
 
@@ -69,14 +70,29 @@ export function markPanelClosed(tabId?: number, windowId?: number, reason?: stri
     if (!openPanelTabs.delete(tabId)) return;
   }
 
-  notifyPanelEvent({
+  notifyPanelClosed(tabId, windowId, reason, path).catch(console.error);
+}
+
+async function notifyPanelClosed(
+  tabId?: number,
+  windowId?: number,
+  reason?: string,
+  path = PANEL_PATH
+): Promise<void> {
+  const state = tabId ? await getTabState(tabId) : null;
+
+  const event = {
     event: 'closed',
     tab_id: tabId,
     window_id: windowId,
     path,
     reason,
+    session_id: state?.sessionId ?? undefined,
     timestamp: Date.now(),
-  }).catch(console.error);
+  } as const;
+
+  console.log('[TermsAI] panel closed event:', event);
+  await notifyPanelEvent(event);
 }
 
 export async function enablePanelForTab(tabId: number): Promise<void> {

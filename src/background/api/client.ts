@@ -101,6 +101,7 @@ export async function notifyPanelEvent(event: {
   window_id?: number;
   path?: string;
   reason?: string;
+  session_id?: string;
   timestamp: number;
 }): Promise<void> {
   const { useMock } = await getSettings();
