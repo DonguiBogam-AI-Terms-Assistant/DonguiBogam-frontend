@@ -4,6 +4,7 @@ export type MessageType =
   | 'TERMS_DETECTED'
   | 'TOGGLE_PANEL'
   | 'OPEN_PANEL'
+  | 'PANEL_CLOSED'
   | 'PANEL_READY'
   | 'TERMS_DATA'
   | 'CHAT_REQUEST'
@@ -26,6 +27,10 @@ export interface OpenPanelPayload {
 }
 
 export interface PanelReadyPayload {
+  tabId: number;
+}
+
+export interface PanelClosedPayload {
   tabId: number;
 }
 
@@ -60,6 +65,7 @@ export type ExtMessage =
   | { type: 'TERMS_DETECTED'; payload: TermsDetectedPayload }
   | { type: 'TOGGLE_PANEL'; payload: TogglePanelPayload }
   | { type: 'OPEN_PANEL'; payload: OpenPanelPayload }
+  | { type: 'PANEL_CLOSED'; payload: PanelClosedPayload }
   | { type: 'PANEL_READY'; payload: PanelReadyPayload }
   | { type: 'TERMS_DATA'; payload: TermsDataPayload }
   | { type: 'CHAT_REQUEST'; payload: ChatRequestPayload }

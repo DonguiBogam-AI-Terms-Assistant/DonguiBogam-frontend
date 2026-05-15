@@ -1,5 +1,5 @@
 import { notifyPanelEvent } from './api/client';
-import { getTabState } from './storageManager';
+import { clearTabConversation, getTabState } from './storageManager';
 
 const PANEL_PATH = 'panel.html';
 
@@ -14,6 +14,7 @@ type SidePanelWithNewApis = typeof chrome.sidePanel & {
 };
 
 const openPanelTabs = new Set<number>();
+const recentClosedEvents = new Map<number, number>();
 
 export async function openTabSpecificPanel(tab: chrome.tabs.Tab): Promise<void> {
   if (!tab.id || !tab.windowId) return;
@@ -62,12 +63,21 @@ export function registerSidePanelLifecycleEvents(): void {
 }
 
 export function markPanelOpened(tabId: number, _windowId?: number, _reason?: string): void {
+  recentClosedEvents.delete(tabId);
   openPanelTabs.add(tabId);
 }
 
 export function markPanelClosed(tabId?: number, windowId?: number, reason?: string, path = PANEL_PATH): void {
   if (tabId) {
-    if (!openPanelTabs.delete(tabId)) return;
+    const wasTrackedOpen = openPanelTabs.delete(tabId);
+    const isBrowserCloseSignal =
+      reason === 'browser_event' || reason === 'port_disconnect' || reason === 'panel_unload';
+    if (!wasTrackedOpen && !isBrowserCloseSignal) return;
+
+    const now = Date.now();
+    const recentClosedAt = recentClosedEvents.get(tabId);
+    if (recentClosedAt && now - recentClosedAt < 1000) return;
+    recentClosedEvents.set(tabId, now);
   }
 
   notifyPanelClosed(tabId, windowId, reason, path).catch(console.error);
@@ -92,7 +102,13 @@ async function notifyPanelClosed(
   } as const;
 
   console.log('[TermsAI] panel closed event:', event);
-  await notifyPanelEvent(event);
+  try {
+    await notifyPanelEvent(event);
+  } finally {
+    if (tabId) {
+      await clearTabConversation(tabId);
+    }
+  }
 }
 
 export async function enablePanelForTab(tabId: number): Promise<void> {

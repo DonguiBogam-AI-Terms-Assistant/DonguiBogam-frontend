@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useTermsData } from './hooks/useTermsData';
 import { useChat } from './hooks/useChat';
 import { useSummarize } from './hooks/useSummarize';
 import { SummaryCard, SummarySkeleton } from './components/SummaryCard';
 import { ChatWindow } from './components/ChatWindow';
 import { ChatInput } from './components/ChatInput';
+import { sendMessage } from '@shared/messages';
 
 export function App() {
   const { tabState, isLoading: dataLoading, error: dataError, tabId } = useTermsData();
@@ -13,6 +14,14 @@ export function App() {
     tabState?.chatHistory ?? []
   );
   const { summary, isLoading: summaryLoading, error: summaryError, requestSummary } = useSummarize(tabId);
+  const notifyPanelClosed = useCallback(() => {
+    if (!tabId) return;
+
+    void sendMessage({
+      type: 'PANEL_CLOSED',
+      payload: { tabId },
+    }).catch(console.error);
+  }, [tabId]);
 
   useEffect(() => {
     if (tabState?.terms && !summary && !summaryLoading && !summaryError) {
@@ -26,10 +35,23 @@ export function App() {
     const port = chrome.runtime.connect({ name: 'side-panel' });
     port.postMessage({ tabId });
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        notifyPanelClosed();
+      }
+    };
+
+    window.addEventListener('pagehide', notifyPanelClosed);
+    window.addEventListener('beforeunload', notifyPanelClosed);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
+      window.removeEventListener('pagehide', notifyPanelClosed);
+      window.removeEventListener('beforeunload', notifyPanelClosed);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       port.disconnect();
     };
-  }, [tabId]);
+  }, [notifyPanelClosed, tabId]);
 
   if (dataLoading) {
     return (

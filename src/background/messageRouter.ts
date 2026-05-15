@@ -19,7 +19,13 @@ import type {
 import { getTabState, setTabState } from './storageManager';
 import { summarize, chatQuery } from './api/client';
 import { generateId } from '@shared/utils';
-import { disablePanelOnOtherTabs, enablePanelForTab, markPanelOpened, togglePanelForTab } from './sidePanelManager';
+import {
+  disablePanelOnOtherTabs,
+  enablePanelForTab,
+  markPanelClosed,
+  markPanelOpened,
+  togglePanelForTab,
+} from './sidePanelManager';
 
 type SendResponse = (response: ExtMessage) => void;
 
@@ -44,13 +50,20 @@ async function handleMessage(
         const tabId = sender.tab?.id;
         if (!tabId) return;
 
+        const existingState = await getTabState(tabId);
+        const isSameDocument =
+          existingState?.terms?.fingerprint === message.payload.terms.fingerprint;
+
         const state: TabState = {
           tabId,
           terms: message.payload.terms,
-          chatHistory: [],
+          chatHistory: isSameDocument ? existingState.chatHistory : [],
           sessionId: null, // 새 세션 초기화
-          status: 'detected',
+          status: existingState?.status ?? 'detected',
         };
+        if (isSameDocument) {
+          state.sessionId = existingState.sessionId;
+        }
         await setTabState(state);
 
         // 배지 업데이트
@@ -99,6 +112,12 @@ async function handleMessage(
 
         const payload: TermsDataPayload = { tabState };
         sendResponse({ type: 'TERMS_DATA', payload });
+        break;
+      }
+
+      case 'PANEL_CLOSED': {
+        markPanelClosed(message.payload.tabId, undefined, 'panel_unload');
+        sendResponse({ type: 'ACK', payload: {} });
         break;
       }
 

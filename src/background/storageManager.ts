@@ -23,6 +23,17 @@ export async function clearTabState(tabId: number): Promise<void> {
   await chrome.storage.session.remove(`tab_${tabId}`);
 }
 
+export async function clearTabConversation(tabId: number): Promise<void> {
+  const state = await getTabState(tabId);
+  if (!state) return;
+
+  await setTabState({
+    ...state,
+    chatHistory: [],
+    sessionId: null,
+  });
+}
+
 // ─── Local Storage (캐시 + 설정) ──────────────────────────────
 
 export async function getSummaryCache(fingerprint: string): Promise<string | null> {
