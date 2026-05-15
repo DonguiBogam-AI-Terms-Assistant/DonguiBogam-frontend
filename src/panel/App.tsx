@@ -35,20 +35,12 @@ export function App() {
     const port = chrome.runtime.connect({ name: 'side-panel' });
     port.postMessage({ tabId });
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        notifyPanelClosed();
-      }
-    };
-
     window.addEventListener('pagehide', notifyPanelClosed);
     window.addEventListener('beforeunload', notifyPanelClosed);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('pagehide', notifyPanelClosed);
       window.removeEventListener('beforeunload', notifyPanelClosed);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       port.disconnect();
     };
   }, [notifyPanelClosed, tabId]);
