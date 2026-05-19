@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { ChatTurn } from '@shared/types';
+import { MarkdownContent } from './MarkdownContent';
 
 interface Props {
   history: ChatTurn[];
@@ -52,7 +53,11 @@ export function ChatWindow({ history, isLoading }: Props) {
             ...(turn.role === 'user' ? styles.userBubble : styles.assistantBubble),
           }}
         >
-          <p style={styles.bubbleText}>{turn.content}</p>
+          {turn.role === 'assistant' ? (
+            <MarkdownContent>{turn.content}</MarkdownContent>
+          ) : (
+            <p style={styles.bubbleText}>{turn.content}</p>
+          )}
           <span style={styles.timestamp}>
             {new Date(turn.timestamp).toLocaleTimeString('ko-KR', {
               hour: '2-digit',
