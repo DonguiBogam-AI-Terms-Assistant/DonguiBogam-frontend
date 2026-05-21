@@ -23,7 +23,7 @@ export function useSummarize(tabId: number | null): UseSummarizeResult {
   }, [tabId]);
 
   const requestSummary = useCallback(async () => {
-    if (!tabId || inFlightRef.current) return;
+    if (tabId == null || inFlightRef.current) return;
 
     inFlightRef.current = true;
     setIsLoading(true);

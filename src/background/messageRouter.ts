@@ -107,7 +107,7 @@ async function handleMessage(
       }
 
       case 'PANEL_READY': {
-        const tabId = message.payload.tabId;
+        const tabId = sender.tab?.id ?? message.payload.tabId;
         const tabState = await getTabState(tabId);
 
         const payload: TermsDataPayload = { tabState };
@@ -115,14 +115,30 @@ async function handleMessage(
         break;
       }
 
+      case 'PANEL_OPENED': {
+        const tabId = sender.tab?.id ?? message.payload.tabId;
+        if (!tabId) return;
+
+        const state = await getTabState(tabId);
+        if (state) {
+          await setTabState({ ...state, status: 'panel_open' });
+        }
+        const tab = await chrome.tabs.get(tabId);
+        markPanelOpened(tabId, tab.windowId, 'float_open');
+        sendResponse({ type: 'ACK', payload: {} });
+        break;
+      }
+
       case 'PANEL_CLOSED': {
-        markPanelClosed(message.payload.tabId, undefined, 'panel_unload');
+        const tabId = sender.tab?.id ?? message.payload.tabId;
+        markPanelClosed(tabId, sender.tab?.windowId, 'panel_unload', 'floating-panel');
         sendResponse({ type: 'ACK', payload: {} });
         break;
       }
 
       case 'CHAT_REQUEST': {
-        const { userMessage, tabId, userTurnId, idempotencyKey } = message.payload;
+        const { userMessage, userTurnId, idempotencyKey } = message.payload;
+        const tabId = sender.tab?.id ?? message.payload.tabId;
         const state = await getTabState(tabId);
 
         if (!state?.terms) {
@@ -208,7 +224,7 @@ async function handleMessage(
       }
 
       case 'SUMMARIZE_REQUEST': {
-        const { tabId } = message.payload;
+        const tabId = sender.tab?.id ?? message.payload.tabId;
         const state = await getTabState(tabId);
 
         if (!state?.terms) {

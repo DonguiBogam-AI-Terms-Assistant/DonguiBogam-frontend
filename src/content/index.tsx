@@ -1,5 +1,6 @@
 import { startObserver } from './detector/observer';
 import { hideFloatingButton, showFloatingButton } from './ui/floatingButton';
+import { hideFloatingPanel, toggleFloatingPanel } from './ui/floatingPanelHost';
 import { sendMessage } from '@shared/messages';
 import type { TermsDocument } from '@shared/types';
 
@@ -9,10 +10,10 @@ function handleTermsDetected(doc: TermsDocument): void {
   console.log(`[TermsAI] detected score=${doc.score} fp=${doc.fingerprint}`);
 
   currentTerms = doc;
-  void preparePanelAndShowButton(doc);
+  void prepareFloatingUi(doc);
 }
 
-async function preparePanelAndShowButton(doc: TermsDocument): Promise<void> {
+async function prepareFloatingUi(doc: TermsDocument): Promise<void> {
   try {
     await sendMessage({
       type: 'TERMS_DETECTED',
@@ -27,19 +28,14 @@ async function preparePanelAndShowButton(doc: TermsDocument): Promise<void> {
 
 function handleButtonClick(): void {
   if (!currentTerms) return;
-
-  sendMessage({
-    type: 'TOGGLE_PANEL',
-    payload: { tabId: 0 },
-  }).catch((err) => {
-    console.warn('[TermsAI] TOGGLE_PANEL failed:', err);
-  });
+  toggleFloatingPanel(currentTerms);
 }
 
 try {
   if (chrome.runtime?.id) {
     chrome.runtime.onMessage.addListener((message) => {
       if (message.type === 'HIDE_BUTTON') {
+        hideFloatingPanel();
         hideFloatingButton();
         currentTerms = null;
       }

@@ -33,7 +33,7 @@ export function useChat(
 
   const submitTurn = useCallback(
     async (userTurn: ChatTurn, options: { append: boolean }) => {
-      if (!tabId || !userTurn.content.trim() || isLoading) return;
+      if (tabId == null || !userTurn.content.trim() || isLoading) return;
 
       const idempotencyKey = userTurn.idempotencyKey ?? generateRandomId('chatmsg');
       const sendingTurn: ChatTurn = {

@@ -32,6 +32,7 @@ export async function clearTabConversation(tabId: number): Promise<void> {
     ...state,
     chatHistory: [],
     sessionId: null,
+    status: 'detected',
   });
 }
 

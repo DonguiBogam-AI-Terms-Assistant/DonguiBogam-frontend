@@ -65,7 +65,7 @@ const TARGET_TITLE_PATTERN =
   /서비스\s*이용약관|이용약관|서비스\s*약관|개인정보\s*처리방침|개인정보처리방침|개인정보\s*수집\s*및\s*이용\s*동의|개인정보\s*제3자\s*제공\s*동의|제3자\s*제공\s*동의|privacy policy|terms of service|terms and conditions/i;
 
 const TERMS_STRUCTURE_PATTERN =
-  /제\s*\d+\s*조|제\s*\d+\s*장|목적|정의|서비스의\s*이용|이용계약|회원가입|회사의\s*의무|회원의\s*의무|이용자의\s*의무|게시물|저작권|서비스\s*이용\s*제한|계약해지|손해배상|면책|분쟁|준거법|재판관할|시행일/g;
+  /제\s*\d+\s*조|제\s*\d+\s*장|목적|정의|서비스의\s*이용|서비스\s*이용|이용계약|회원\s*가입|회원가입|회사의\s*의무|회원의\s*의무|이용자의\s*의무|게시물|콘텐츠|저작권|서비스\s*이용\s*제한|이용\s*제한|계약\s*해지|계약해지|손해배상|면책|광고|분쟁|준거법|재판관할|시행일|시행일자|약관\s*및\s*운영정책/g;
 
 const PRIVACY_STRUCTURE_PATTERN =
   /개인정보의\s*수집|수집하는\s*개인정보|수집\s*및\s*이용|수집·이용|처리\s*목적|처리\s*항목|보유\s*및\s*이용기간|제3자\s*제공|개인정보\s*제3자\s*제공|처리위탁|수탁사|위탁\s*업무|국외\s*이전|파기|정보주체|이용자\s*권리|동의\s*철회|거부권|쿠키|자동\s*수집|개인정보\s*보호책임자|법정대리인/g;
@@ -99,6 +99,23 @@ function visibleText(el: Element | null): string {
   } catch {
     return normalizeText(el.textContent ?? '');
   }
+}
+
+function imageAltText(el: Element | Document = document): string {
+  try {
+    return normalizeText(
+      Array.from(el.querySelectorAll('img[alt]'))
+        .map((img) => img.getAttribute('alt') ?? '')
+        .filter(Boolean)
+        .join('\n')
+    );
+  } catch {
+    return '';
+  }
+}
+
+function signalText(el: Element): string {
+  return normalizeText([visibleText(el), imageAltText(el)].filter(Boolean).join('\n'));
 }
 
 function getIdentityText(el: Element): string {
@@ -169,6 +186,17 @@ function hasStrongTableSignal(el: Element): boolean {
   }
 }
 
+function countTermsNavigationSignals(el: Element): number {
+  try {
+    const namedSections = el.querySelectorAll('a[name^="a"], [id^="a"]');
+    const indexLinks = el.querySelectorAll('a[href*="#a"]');
+    const sectionHeadings = el.querySelectorAll('h2, h3, h4');
+    return Math.max(namedSections.length, indexLinks.length, sectionHeadings.length);
+  } catch {
+    return 0;
+  }
+}
+
 function guessType(text: string, reasons: string[]): GuessedDocumentType {
   if (reasons.some((reason) => reason.includes('consent_ui'))) return 'CONSENT';
   if (/개인정보|privacy|제3자|수집|처리위탁|수탁사|정보주체/i.test(text)) {
@@ -211,22 +239,31 @@ export function scoreCandidate(el: Element): CandidateScore {
 
   try {
     const text = visibleText(el);
-    const headingText = visibleText(el.querySelector('h1, h2, h3, [role="heading"]'));
+    const textWithAlt = signalText(el);
+    const headingEl = el.querySelector('h1, h2, h3, [role="heading"]');
+    const headingText = headingEl
+      ? normalizeText([visibleText(headingEl), imageAltText(headingEl)].join('\n'))
+      : '';
     const identityText = getIdentityText(el);
+    const pageTitle = document.title;
     const termsCount = countMatches(text, TERMS_STRUCTURE_PATTERN);
     const privacyCount = countMatches(text, PRIVACY_STRUCTURE_PATTERN);
-    const falsePositiveCount = countMatches(text, FALSE_POSITIVE_PATTERN);
+    const falsePositiveCount = countMatches(
+      `${headingText}\n${identityText}\n${pageTitle}`,
+      FALSE_POSITIVE_PATTERN
+    );
+    const termsNavigationSignals = countTermsNavigationSignals(el);
 
-    if (TARGET_TITLE_PATTERN.test(headingText)) {
+    if (TARGET_TITLE_PATTERN.test(`${headingText}\n${pageTitle}`)) {
       score += 30;
       reasons.push('target_heading');
     }
-    if (TARGET_TITLE_PATTERN.test(text.slice(0, 1200))) {
+    if (TARGET_TITLE_PATTERN.test(textWithAlt.slice(0, 1600))) {
       score += 18;
       reasons.push('target_text_near_top');
     }
     if (/terms|privacy|policy|agreement|consent/i.test(identityText)) {
-      score += 12;
+      score += /agreement/i.test(identityText) ? 18 : 12;
       reasons.push('semantic_id_or_class');
     }
     if (URL_HINT_PATTERN.test(location.href)) {
@@ -236,6 +273,10 @@ export function scoreCandidate(el: Element): CandidateScore {
     if (termsCount >= 4) {
       score += Math.min(25, 10 + termsCount * 2);
       reasons.push(`terms_structure:${termsCount}`);
+    }
+    if (termsNavigationSignals >= 8) {
+      score += Math.min(28, 12 + termsNavigationSignals);
+      reasons.push(`terms_navigation:${termsNavigationSignals}`);
     }
     if (privacyCount >= 3) {
       score += Math.min(30, 12 + privacyCount * 2);

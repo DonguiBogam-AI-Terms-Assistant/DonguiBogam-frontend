@@ -21,30 +21,32 @@ const BUTTON_HTML = `
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 16px rgba(79, 70, 229, 0.45);
+      box-shadow: 0 8px 24px rgba(79, 70, 229, 0.42);
       z-index: 2147483647;
       transition: transform 0.15s ease, box-shadow 0.15s ease;
-      font-size: 22px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 25px;
+      font-weight: 700;
       line-height: 1;
     }
 
     .fab:hover {
-      transform: scale(1.08);
-      box-shadow: 0 6px 20px rgba(79, 70, 229, 0.55);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(79, 70, 229, 0.52);
     }
 
     .fab:active {
-      transform: scale(0.96);
+      transform: translateY(0);
     }
 
     .badge {
       position: absolute;
-      top: 4px;
-      right: 4px;
+      top: 6px;
+      right: 6px;
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      background: #ef4444;
+      background: #22c55e;
       border: 2px solid #fff;
     }
 
@@ -53,12 +55,12 @@ const BUTTON_HTML = `
       right: 64px;
       top: 50%;
       transform: translateY(-50%);
-      background: #1e1b4b;
+      background: #111827;
       color: #fff;
       font-size: 12px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      padding: 5px 10px;
-      border-radius: 6px;
+      padding: 6px 10px;
+      border-radius: 7px;
       white-space: nowrap;
       opacity: 0;
       pointer-events: none;
@@ -70,10 +72,10 @@ const BUTTON_HTML = `
     }
   </style>
 
-  <button class="fab" id="fab-btn" title="약관 요약 AI">
-    <span>📋</span>
+  <button class="fab" id="fab-btn" title="동의보감">
+    <span aria-hidden="true">📜</span>
     <span class="badge"></span>
-    <span class="tooltip">약관이 감지됐어요</span>
+    <span class="tooltip">약관 분석 열기</span>
   </button>
 `;
 
