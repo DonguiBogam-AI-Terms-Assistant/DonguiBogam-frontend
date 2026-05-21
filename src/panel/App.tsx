@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useTermsData } from './hooks/useTermsData';
 import { useChat } from './hooks/useChat';
 import { useSummarize } from './hooks/useSummarize';
@@ -9,11 +9,23 @@ import { sendMessage } from '@shared/messages';
 
 export function App() {
   const { tabState, isLoading: dataLoading, error: dataError, tabId } = useTermsData();
-  const { history, isLoading: chatLoading, error: chatError, sendUserMessage, clearError } = useChat(
-    tabId,
-    tabState?.chatHistory ?? []
-  );
+  const {
+    history,
+    isLoading: chatLoading,
+    error: chatError,
+    sendUserMessage,
+    retryMessage,
+    clearError,
+  } = useChat(tabId, tabState?.chatHistory ?? [], tabState?.sessionId ?? null);
   const { summary, isLoading: summaryLoading, error: summaryError, requestSummary } = useSummarize(tabId);
+  const suggestedQuestions = useMemo(() => {
+    const latestAssistantQuestions = [...history]
+      .reverse()
+      .find((turn) => turn.role === 'assistant' && turn.suggestedQuestions?.length)
+      ?.suggestedQuestions;
+
+    return latestAssistantQuestions ?? summary?.suggested_questions ?? [];
+  }, [history, summary?.suggested_questions]);
   const notifyPanelClosed = useCallback(() => {
     if (!tabId) return;
 
@@ -95,7 +107,11 @@ export function App() {
         <div style={styles.divider} />
 
         <section style={styles.chatSection}>
-          <ChatWindow history={history} isLoading={chatLoading} />
+          <ChatWindow
+            history={history}
+            isLoading={chatLoading}
+            onRetry={retryMessage}
+          />
 
           {chatError && (
             <div style={styles.errorBanner}>
@@ -110,6 +126,29 @@ export function App() {
           )}
         </section>
       </div>
+
+      {suggestedQuestions.length > 0 && (
+        <div style={styles.suggestedPanel}>
+          <span style={styles.suggestedLabel}>추천 질문</span>
+          <div style={styles.suggestedList}>
+            {suggestedQuestions.map((question) => (
+              <button
+                key={question}
+                type="button"
+                style={{
+                  ...styles.suggestedButton,
+                  opacity: chatLoading ? 0.55 : 1,
+                  cursor: chatLoading ? 'not-allowed' : 'pointer',
+                }}
+                onClick={() => sendUserMessage(question)}
+                disabled={chatLoading}
+              >
+                {question}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <ChatInput onSend={sendUserMessage} disabled={chatLoading} />
     </div>
@@ -163,6 +202,37 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 0,
     display: 'flex',
     flexDirection: 'column',
+  },
+  suggestedPanel: {
+    flexShrink: 0,
+    borderTop: '1px solid #eef2ff',
+    background: '#ffffff',
+    padding: '8px 14px 6px',
+  },
+  suggestedLabel: {
+    display: 'block',
+    fontSize: 11,
+    fontWeight: 700,
+    color: '#6b7280',
+    marginBottom: 7,
+  },
+  suggestedList: {
+    display: 'grid',
+    gridTemplateColumns: '1fr',
+    gap: 6,
+  },
+  suggestedButton: {
+    width: '100%',
+    border: '1px solid #dbeafe',
+    borderRadius: 8,
+    background: '#f8fbff',
+    color: '#2563eb',
+    cursor: 'pointer',
+    fontSize: 12,
+    lineHeight: 1.4,
+    padding: '7px 9px',
+    textAlign: 'left',
+    fontFamily: 'inherit',
   },
   divider: {
     height: 1,

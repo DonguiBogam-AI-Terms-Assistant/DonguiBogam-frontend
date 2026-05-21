@@ -5,6 +5,7 @@
  */
 
 import type { TabState, LocalStorageSchema, UserSettings } from '@shared/types';
+import { generateRandomId } from '@shared/utils';
 
 // ─── Session Storage (탭 상태) ─────────────────────────────────
 
@@ -57,4 +58,16 @@ export async function getSettings(): Promise<UserSettings> {
 export async function setSettings(settings: Partial<UserSettings>): Promise<void> {
   const current = await getSettings();
   await chrome.storage.local.set({ settings: { ...current, ...settings } });
+}
+
+export async function getOrCreateClientInstallId(): Promise<string> {
+  const result = await chrome.storage.local.get('clientInstallId');
+  const existing = result['clientInstallId'];
+  if (typeof existing === 'string' && existing.trim()) {
+    return existing;
+  }
+
+  const clientInstallId = generateRandomId('install');
+  await chrome.storage.local.set({ clientInstallId });
+  return clientInstallId;
 }

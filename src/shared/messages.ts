@@ -41,11 +41,14 @@ export interface TermsDataPayload {
 export interface ChatRequestPayload {
   userMessage: string;
   tabId: number;
+  userTurnId: string;
+  idempotencyKey: string;
 }
 
 export interface ChatResponsePayload {
   turn: ChatTurn;
   sessionId: string;
+  suggestedQuestions: string[];
 }
 
 export interface SummarizeRequestPayload {

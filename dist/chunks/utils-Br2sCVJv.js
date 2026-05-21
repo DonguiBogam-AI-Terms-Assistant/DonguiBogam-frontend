@@ -1,0 +1,1 @@
+function e(){return`${Date.now()}-${Math.random().toString(36).slice(2,7)}`}function o(n){return new Promise(t=>setTimeout(t,n))}function r(n="id"){const t=typeof crypto<"u"&&"randomUUID"in crypto?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2,10)}`;return`${n}_${t}`}export{e as a,o as d,r as g};

@@ -33,6 +33,11 @@ export async function mockSummarize(
         : '- No obvious third-party sharing language was detected in the mock scan.',
       '- Review retention periods, collected data, and opt-out clauses carefully.',
     ].join('\\n'),
+    suggested_questions: [
+      'What personal data does this service collect?',
+      'How long is my data retained after deletion?',
+      'Does this policy allow third-party sharing?',
+    ],
   };
 }
 
@@ -48,6 +53,7 @@ export async function mockChatQuery(request: ChatQueryRequest): Promise<ChatQuer
   return {
     session_id: `sess_${generateId()}`,
     answer: generateMockAnswer(request.query, request.raw_text),
+    suggested_questions: generateMockQuestions(),
   };
 }
 
@@ -62,7 +68,16 @@ export async function mockChatFollowup(request: ChatFollowupRequest): Promise<Ch
   return {
     session_id: request.session_id,
     answer: generateMockAnswer(request.query, ''),
+    suggested_questions: generateMockQuestions(),
   };
+}
+
+function generateMockQuestions(): string[] {
+  return [
+    'Can you point out the risky clauses?',
+    'Is there any third-party data sharing?',
+    'What happens when I delete my account?',
+  ];
 }
 
 function generateMockAnswer(query: string, plainText: string): string {

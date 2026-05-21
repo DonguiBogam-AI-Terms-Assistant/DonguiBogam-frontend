@@ -1,15 +1,8 @@
-/**
- * 채팅 상태 관리 훅
- * - 메시지 전송 / 응답 수신
- * - 로딩 상태 관리
- * - Backend session_id 관리
- */
-
-import { useState, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { ChatTurn } from '@shared/types';
 import type { ErrorPayload } from '@shared/messages';
 import { sendMessage } from '@shared/messages';
-import { generateId } from '@shared/utils';
+import { generateId, generateRandomId } from '@shared/utils';
 
 interface UseChatResult {
   history: ChatTurn[];
@@ -17,48 +10,74 @@ interface UseChatResult {
   error: { code?: string; message: string } | null;
   sessionId: string | null;
   sendUserMessage: (message: string) => Promise<void>;
+  retryMessage: (turn: ChatTurn) => Promise<void>;
   clearError: () => void;
 }
 
 export function useChat(
   tabId: number | null,
-  initialHistory: ChatTurn[] = []
+  initialHistory: ChatTurn[] = [],
+  initialSessionId: string | null = null
 ): UseChatResult {
   const [history, setHistory] = useState<ChatTurn[]>(initialHistory);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(initialSessionId);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<{ code?: string; message: string } | null>(null);
 
-  const sendUserMessage = useCallback(
-    async (message: string) => {
-      if (!tabId || !message.trim() || isLoading) return;
+  useEffect(() => {
+    setHistory(initialHistory);
+    setSessionId(initialSessionId);
+    setError(null);
+    setIsLoading(false);
+  }, [tabId, initialSessionId]);
 
-      const userTurn: ChatTurn = {
-        id: generateId(),
-        role: 'user',
-        content: message.trim(),
-        timestamp: Date.now(),
+  const submitTurn = useCallback(
+    async (userTurn: ChatTurn, options: { append: boolean }) => {
+      if (!tabId || !userTurn.content.trim() || isLoading) return;
+
+      const idempotencyKey = userTurn.idempotencyKey ?? generateRandomId('chatmsg');
+      const sendingTurn: ChatTurn = {
+        ...userTurn,
+        idempotencyKey,
+        status: 'sending',
       };
 
-      // 낙관적 업데이트: 사용자 메시지 즉시 표시
-      setHistory((prev) => [...prev, userTurn]);
+      if (options.append) {
+        setHistory((prev) => [...prev, sendingTurn]);
+      } else {
+        setHistory((prev) => prev.map((turn) => (turn.id === userTurn.id ? sendingTurn : turn)));
+      }
+
       setIsLoading(true);
       setError(null);
 
       try {
         const response = await sendMessage({
           type: 'CHAT_REQUEST',
-          payload: { userMessage: message.trim(), tabId },
+          payload: {
+            userMessage: userTurn.content.trim(),
+            tabId,
+            userTurnId: userTurn.id,
+            idempotencyKey,
+          },
         });
 
-        if (!response) throw new Error('응답이 없습니다.');
+        if (!response) throw new Error('No response received.');
 
         if (response.type === 'CHAT_RESPONSE') {
           const { turn, sessionId: newSessionId } = response.payload;
           if (newSessionId && !sessionId) {
             setSessionId(newSessionId);
           }
-          setHistory((prev) => [...prev, turn]);
+
+          setHistory((prev) => [
+            ...prev.map((item) =>
+              item.id === userTurn.id
+                ? { ...item, status: 'sent' as const, idempotencyKey }
+                : item
+            ),
+            turn,
+          ]);
         } else if (response.type === 'ERROR') {
           const errorPayload = response.payload as ErrorPayload;
           throw {
@@ -71,11 +90,17 @@ export function useChat(
           setError(err as { code?: string; message: string });
         } else {
           setError({
-            message: err instanceof Error ? err.message : '메시지 전송 실패',
+            message: err instanceof Error ? err.message : 'Failed to send message.',
           });
         }
-        // 실패 시 사용자 메시지 제거
-        setHistory((prev) => prev.filter((t) => t.id !== userTurn.id));
+
+        setHistory((prev) =>
+          prev.map((turn) =>
+            turn.id === userTurn.id
+              ? { ...turn, status: 'failed' as const, idempotencyKey }
+              : turn
+          )
+        );
       } finally {
         setIsLoading(false);
       }
@@ -83,7 +108,35 @@ export function useChat(
     [tabId, isLoading, sessionId]
   );
 
+  const sendUserMessage = useCallback(
+    async (message: string) => {
+      const trimmed = message.trim();
+      if (!trimmed) return;
+
+      await submitTurn(
+        {
+          id: generateId(),
+          role: 'user',
+          content: trimmed,
+          timestamp: Date.now(),
+          status: 'sending',
+          idempotencyKey: generateRandomId('chatmsg'),
+        },
+        { append: true }
+      );
+    },
+    [submitTurn]
+  );
+
+  const retryMessage = useCallback(
+    async (turn: ChatTurn) => {
+      if (turn.role !== 'user' || !turn.idempotencyKey) return;
+      await submitTurn(turn, { append: false });
+    },
+    [submitTurn]
+  );
+
   const clearError = useCallback(() => setError(null), []);
 
-  return { history, isLoading, error, sessionId, sendUserMessage, clearError };
+  return { history, isLoading, error, sessionId, sendUserMessage, retryMessage, clearError };
 }

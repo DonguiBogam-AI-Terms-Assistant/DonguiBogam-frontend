@@ -26,6 +26,9 @@ export interface ChatTurn {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  status?: 'sending' | 'sent' | 'failed';
+  idempotencyKey?: string;
+  suggestedQuestions?: string[];
 }
 
 /** 탭별 상태 (storage.session) */
@@ -43,6 +46,7 @@ export interface LocalStorageSchema {
   /** fingerprint → 요약 캐시 */
   summaryCache: Record<string, string>;
   settings: UserSettings;
+  clientInstallId?: string;
 }
 
 export interface UserSettings {
@@ -62,6 +66,7 @@ export interface SummarizeRequest {
 /** 약관 요약 응답 (MVP: summary만 포함) */
 export interface SummarizeResponse {
   summary: string;
+  suggested_questions: string[];
 }
 
 /** 첫 채팅 요청 */
@@ -81,4 +86,5 @@ export interface ChatFollowupRequest {
 export interface ChatQueryResponse {
   session_id: string; // 후속 요청에 사용
   answer: string;
+  suggested_questions: string[];
 }

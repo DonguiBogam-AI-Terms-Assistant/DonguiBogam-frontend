@@ -5,9 +5,10 @@ import { MarkdownContent } from './MarkdownContent';
 interface Props {
   history: ChatTurn[];
   isLoading: boolean;
+  onRetry?: (turn: ChatTurn) => void;
 }
 
-export function ChatWindow({ history, isLoading }: Props) {
+export function ChatWindow({ history, isLoading, onRetry }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -57,6 +58,11 @@ export function ChatWindow({ history, isLoading }: Props) {
             <MarkdownContent>{turn.content}</MarkdownContent>
           ) : (
             <p style={styles.bubbleText}>{turn.content}</p>
+          )}
+          {turn.role === 'user' && turn.status === 'failed' && (
+            <button type="button" style={styles.retryButton} onClick={() => onRetry?.(turn)}>
+              Retry
+            </button>
           )}
           <span style={styles.timestamp}>
             {new Date(turn.timestamp).toLocaleTimeString('ko-KR', {
@@ -157,6 +163,18 @@ const styles: Record<string, React.CSSProperties> = {
     opacity: 0.6,
     display: 'block',
     textAlign: 'right',
+  },
+  retryButton: {
+    display: 'block',
+    marginTop: 6,
+    marginLeft: 'auto',
+    padding: '3px 8px',
+    borderRadius: 6,
+    border: '1px solid rgba(255,255,255,0.65)',
+    background: 'rgba(255,255,255,0.16)',
+    color: '#fff',
+    fontSize: 11,
+    cursor: 'pointer',
   },
   typing: {
     display: 'flex',

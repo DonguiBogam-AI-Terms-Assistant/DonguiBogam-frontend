@@ -15,7 +15,7 @@ import {
   mockChatQuery,
   mockChatFollowup,
 } from './mockApi';
-import { getSettings } from '../storageManager';
+import { getOrCreateClientInstallId, getSettings } from '../storageManager';
 
 const DEFAULT_API_BASE_URL = 'http://localhost:8000';
 
@@ -65,7 +65,8 @@ export async function summarize(
  * POST /chat/query
  */
 export async function chatQuery(
-  request: ChatQueryRequest | ChatFollowupRequest
+  request: ChatQueryRequest | ChatFollowupRequest,
+  idempotencyKey: string
 ): Promise<ChatQueryResponse> {
   const { useMock } = await getSettings();
 
@@ -79,9 +80,14 @@ export async function chatQuery(
   }
 
   const baseUrl = await getApiBaseUrl();
+  const clientInstallId = await getOrCreateClientInstallId();
   const res = await fetch(`${baseUrl}/chat/query`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Client-Install-Id': clientInstallId,
+      'X-Idempotency-Key': idempotencyKey,
+    },
     body: JSON.stringify(request),
   });
 

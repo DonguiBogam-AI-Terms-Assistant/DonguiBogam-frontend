@@ -122,7 +122,7 @@ async function handleMessage(
       }
 
       case 'CHAT_REQUEST': {
-        const { userMessage, tabId } = message.payload;
+        const { userMessage, tabId, userTurnId, idempotencyKey } = message.payload;
         const state = await getTabState(tabId);
 
         if (!state?.terms) {
@@ -145,7 +145,7 @@ async function handleMessage(
               raw_text: state.terms.plainText,
               query: userMessage,
             };
-            chatResponse = await chatQuery(request);
+            chatResponse = await chatQuery(request, idempotencyKey);
 
             // 새 sessionId 저장
             await setTabState({
@@ -158,21 +158,25 @@ async function handleMessage(
               session_id: state.sessionId,
               query: userMessage,
             };
-            chatResponse = await chatQuery(request);
+            chatResponse = await chatQuery(request, idempotencyKey);
           }
 
           // 채팅 히스토리에 user + assistant 턴 추가
           const userTurn = {
-            id: generateId(),
+            id: userTurnId,
             role: 'user' as const,
             content: userMessage,
             timestamp: Date.now(),
+            status: 'sent' as const,
+            idempotencyKey,
           };
           const assistantTurn = {
             id: generateId(),
             role: 'assistant' as const,
             content: chatResponse.answer,
             timestamp: Date.now(),
+            status: 'sent' as const,
+            suggestedQuestions: chatResponse.suggested_questions,
           };
 
           await setTabState({
@@ -184,6 +188,7 @@ async function handleMessage(
           const payload: ChatResponsePayload = {
             turn: assistantTurn,
             sessionId: chatResponse.session_id,
+            suggestedQuestions: chatResponse.suggested_questions,
           };
           sendResponse({ type: 'CHAT_RESPONSE', payload });
         } catch (err) {
