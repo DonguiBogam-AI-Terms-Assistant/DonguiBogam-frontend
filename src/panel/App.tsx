@@ -87,6 +87,20 @@ export function App() {
 
   return (
     <div style={styles.root}>
+      <style>
+        {`
+          @keyframes suggestedQuestionFadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(6px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+        `}
+      </style>
       <div style={styles.header}>
         <span style={styles.headerIcon}>AI</span>
         <span style={styles.headerTitle}>동의보감 : 약관 요약 AI</span>
@@ -131,20 +145,27 @@ export function App() {
         <div style={styles.suggestedPanel}>
           <span style={styles.suggestedLabel}>추천 질문</span>
           <div style={styles.suggestedList}>
-            {suggestedQuestions.map((question) => (
-              <button
+            {suggestedQuestions.map((question, index) => (
+              <div
                 key={question}
-                type="button"
                 style={{
-                  ...styles.suggestedButton,
-                  opacity: chatLoading ? 0.55 : 1,
-                  cursor: chatLoading ? 'not-allowed' : 'pointer',
+                  ...styles.suggestedItem,
+                  animationDelay: `${index * 90}ms`,
                 }}
-                onClick={() => sendUserMessage(question)}
-                disabled={chatLoading}
               >
-                {question}
-              </button>
+                <button
+                  type="button"
+                  style={{
+                    ...styles.suggestedButton,
+                    opacity: chatLoading ? 0.55 : 1,
+                    cursor: chatLoading ? 'not-allowed' : 'pointer',
+                  }}
+                  onClick={() => sendUserMessage(question)}
+                  disabled={chatLoading}
+                >
+                  {question}
+                </button>
+              </div>
             ))}
           </div>
         </div>
@@ -220,6 +241,10 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'grid',
     gridTemplateColumns: '1fr',
     gap: 6,
+  },
+  suggestedItem: {
+    opacity: 0,
+    animation: 'suggestedQuestionFadeIn 240ms ease-out both',
   },
   suggestedButton: {
     width: '100%',
