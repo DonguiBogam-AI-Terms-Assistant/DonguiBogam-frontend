@@ -1,9 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { TermsDocument } from '@shared/types';
+import { sendMessage } from '@shared/messages';
 import { FloatingPanel } from './FloatingPanel';
 
 const PANEL_ID = 'terms-ai-floating-panel-host';
+const CONTENT_TAB_ID = 0;
 
 let hostEl: HTMLElement | null = null;
 let root: Root | null = null;
@@ -23,6 +25,11 @@ export function showFloatingPanel(terms: TermsDocument): void {
 }
 
 export function hideFloatingPanel(): void {
+  void sendMessage({
+    type: 'CLEAR_CONVERSATION',
+    payload: { tabId: CONTENT_TAB_ID },
+  }).catch(console.error);
+
   currentTerms = null;
   root?.unmount();
   root = null;

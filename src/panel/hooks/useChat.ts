@@ -12,6 +12,7 @@ interface UseChatResult {
   sendUserMessage: (message: string) => Promise<void>;
   retryMessage: (turn: ChatTurn) => Promise<void>;
   clearError: () => void;
+  clearHistory: () => void;
 }
 
 export function useChat(
@@ -137,6 +138,21 @@ export function useChat(
   );
 
   const clearError = useCallback(() => setError(null), []);
+  const clearHistory = useCallback(() => {
+    setHistory([]);
+    setSessionId(null);
+    setError(null);
+    setIsLoading(false);
+  }, []);
 
-  return { history, isLoading, error, sessionId, sendUserMessage, retryMessage, clearError };
+  return {
+    history,
+    isLoading,
+    error,
+    sessionId,
+    sendUserMessage,
+    retryMessage,
+    clearError,
+    clearHistory,
+  };
 }

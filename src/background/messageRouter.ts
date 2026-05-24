@@ -16,7 +16,7 @@ import type {
   ChatFollowupRequest,
   ChatQueryResponse,
 } from '@shared/types';
-import { getTabState, setTabState } from './storageManager';
+import { clearTabConversation, getTabState, setTabState } from './storageManager';
 import { summarize, chatQuery } from './api/client';
 import { generateId } from '@shared/utils';
 import {
@@ -132,6 +132,15 @@ async function handleMessage(
       case 'PANEL_CLOSED': {
         const tabId = sender.tab?.id ?? message.payload.tabId;
         markPanelClosed(tabId, sender.tab?.windowId, 'panel_unload', 'floating-panel');
+        sendResponse({ type: 'ACK', payload: {} });
+        break;
+      }
+
+      case 'CLEAR_CONVERSATION': {
+        const tabId = sender.tab?.id ?? message.payload.tabId;
+        if (tabId) {
+          await clearTabConversation(tabId);
+        }
         sendResponse({ type: 'ACK', payload: {} });
         break;
       }

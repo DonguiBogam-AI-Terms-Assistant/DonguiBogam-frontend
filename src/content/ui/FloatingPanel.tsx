@@ -28,6 +28,7 @@ export function FloatingPanel({ terms, onClose }: Props) {
   const dragRef = useRef<{ offsetX: number; offsetY: number } | null>(null);
   const [panelPosition, setPanelPosition] = useState<{ left: number; top: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [tabState, setTabState] = useState<TabState | null>(null);
 
   const {
@@ -37,6 +38,7 @@ export function FloatingPanel({ terms, onClose }: Props) {
     sendUserMessage,
     retryMessage,
     clearError,
+    clearHistory,
   } = useChat(CONTENT_TAB_ID, tabState?.chatHistory ?? [], tabState?.sessionId ?? null);
   const { summary, isLoading: summaryLoading, error: summaryError, requestSummary } =
     useSummarize(CONTENT_TAB_ID);
@@ -52,6 +54,7 @@ export function FloatingPanel({ terms, onClose }: Props) {
 
   const shellStyle: CSSProperties = {
     ...styles.shell,
+    ...(isMinimized ? styles.minimizedShell : {}),
     ...(panelPosition
       ? {
           left: panelPosition.left,
@@ -111,6 +114,23 @@ export function FloatingPanel({ terms, onClose }: Props) {
     [chatLoading, sendUserMessage]
   );
 
+  const clearConversation = useCallback(() => {
+    clearHistory();
+    void sendMessage({
+      type: 'CLEAR_CONVERSATION',
+      payload: { tabId: CONTENT_TAB_ID },
+    }).catch(console.error);
+  }, [clearHistory]);
+
+  const handleClose = useCallback(() => {
+    clearConversation();
+    onClose();
+  }, [clearConversation, onClose]);
+
+  const handleToggleMinimized = useCallback(() => {
+    setIsMinimized((current) => !current);
+  }, []);
+
   useEffect(() => {
     if (!summary && !summaryLoading && !summaryError) {
       void requestSummary();
@@ -166,17 +186,36 @@ export function FloatingPanel({ terms, onClose }: Props) {
             <div style={styles.subtitle}>{terms.title || '약관 분석'}</div>
           </div>
         </div>
-        <button
-          type="button"
-          style={styles.iconButton}
-          onClick={onClose}
-          onPointerDown={(event) => event.stopPropagation()}
-          aria-label="닫기"
-        >
-          ×
-        </button>
+        <div style={styles.headerActions}>
+          <button
+            type="button"
+            style={styles.iconButton}
+            onClick={handleToggleMinimized}
+            onPointerDown={(event) => event.stopPropagation()}
+            aria-label={isMinimized ? '최대화' : '최소화'}
+          >
+            <span
+              style={isMinimized ? styles.maximizeIcon : styles.minimizeIcon}
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            type="button"
+            style={styles.iconButton}
+            onClick={handleClose}
+            onPointerDown={(event) => event.stopPropagation()}
+            aria-label="닫기"
+          >
+            <span style={styles.closeIcon} aria-hidden="true">
+              <span style={styles.closeIconLine} />
+              <span style={styles.closeIconLineReverse} />
+            </span>
+          </button>
+        </div>
       </header>
 
+      {!isMinimized && (
+        <>
       <div style={styles.body}>
         <section style={styles.summaryArea}>
           {summary ? <SummaryCard summary={summary} /> : <SummarySkeleton />}
@@ -230,6 +269,8 @@ export function FloatingPanel({ terms, onClose }: Props) {
       )}
 
       <ChatInput onSend={sendUserMessage} disabled={chatLoading} />
+        </>
+      )}
     </div>
   );
 }
@@ -252,6 +293,9 @@ const styles: Record<string, CSSProperties> = {
     overflow: 'hidden',
     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     zIndex: 2147483647,
+  },
+  minimizedShell: {
+    height: 52,
   },
   header: {
     height: 52,
@@ -304,6 +348,9 @@ const styles: Record<string, CSSProperties> = {
   iconButton: {
     width: 28,
     height: 28,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     border: 'none',
     borderRadius: 6,
     background: 'transparent',
@@ -311,6 +358,54 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     fontSize: 22,
     lineHeight: '24px',
+  },
+  headerActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 2,
+    flexShrink: 0,
+  },
+  minimizeIcon: {
+    display: 'block',
+    width: 14,
+    height: 2,
+    background: '#4b5563',
+    borderRadius: 1,
+  },
+  maximizeIcon: {
+    display: 'block',
+    width: 13,
+    height: 10,
+    border: '2px solid #4b5563',
+    boxSizing: 'border-box',
+  },
+  closeIcon: {
+    position: 'relative',
+    display: 'block',
+    width: 15,
+    height: 15,
+  },
+  closeIconLine: {
+    position: 'absolute',
+    top: 6,
+    left: 0,
+    width: 16,
+    height: 2,
+    background: '#4b5563',
+    borderRadius: 1,
+    transform: 'rotate(45deg)',
+    transformOrigin: 'center',
+  },
+  closeIconLineReverse: {
+    position: 'absolute',
+    top: 6,
+    left: 0,
+    width: 16,
+    height: 2,
+    background: '#4b5563',
+    borderRadius: 1,
+    transform: 'rotate(-45deg)',
+    transformOrigin: 'center',
   },
   body: {
     flex: 1,

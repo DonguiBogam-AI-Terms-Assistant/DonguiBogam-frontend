@@ -6,6 +6,7 @@ export type MessageType =
   | 'OPEN_PANEL'
   | 'PANEL_OPENED'
   | 'PANEL_CLOSED'
+  | 'CLEAR_CONVERSATION'
   | 'PANEL_READY'
   | 'TERMS_DATA'
   | 'CHAT_REQUEST'
@@ -36,6 +37,10 @@ export interface PanelClosedPayload {
 }
 
 export interface PanelOpenedPayload {
+  tabId: number;
+}
+
+export interface ClearConversationPayload {
   tabId: number;
 }
 
@@ -75,6 +80,7 @@ export type ExtMessage =
   | { type: 'OPEN_PANEL'; payload: OpenPanelPayload }
   | { type: 'PANEL_OPENED'; payload: PanelOpenedPayload }
   | { type: 'PANEL_CLOSED'; payload: PanelClosedPayload }
+  | { type: 'CLEAR_CONVERSATION'; payload: ClearConversationPayload }
   | { type: 'PANEL_READY'; payload: PanelReadyPayload }
   | { type: 'TERMS_DATA'; payload: TermsDataPayload }
   | { type: 'CHAT_REQUEST'; payload: ChatRequestPayload }
