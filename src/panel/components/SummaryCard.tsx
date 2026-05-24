@@ -68,8 +68,8 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 8,
   },
   title: {
-    fontWeight: 600,
-    fontSize: 13,
+    fontWeight: 800,
+    fontSize: 15,
     color: '#4f46e5',
   },
   skeletonTitle: {
