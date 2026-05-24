@@ -29,6 +29,7 @@ export function FloatingPanel({ terms, onClose }: Props) {
   const [panelPosition, setPanelPosition] = useState<{ left: number; top: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [panelOpacity, setPanelOpacity] = useState(1);
   const [tabState, setTabState] = useState<TabState | null>(null);
 
   const {
@@ -54,6 +55,7 @@ export function FloatingPanel({ terms, onClose }: Props) {
 
   const shellStyle: CSSProperties = {
     ...styles.shell,
+    opacity: panelOpacity,
     ...(isMinimized ? styles.minimizedShell : {}),
     ...(panelPosition
       ? {
@@ -179,6 +181,50 @@ export function FloatingPanel({ terms, onClose }: Props) {
               transform: translateY(0);
             }
           }
+
+          .terms-ai-opacity-slider {
+            width: 54px;
+            height: 12px;
+            padding: 0;
+            margin: 0 2px 0 0;
+            background: transparent;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+          }
+
+          .terms-ai-opacity-slider::-webkit-slider-runnable-track {
+            height: 1px;
+            background: #9ca3af;
+            border-radius: 999px;
+          }
+
+          .terms-ai-opacity-slider::-webkit-slider-thumb {
+            width: 8px;
+            height: 8px;
+            margin-top: -3.5px;
+            border: 1px solid #9ca3af;
+            border-radius: 50%;
+            background: #f9fafb;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+            appearance: none;
+            -webkit-appearance: none;
+          }
+
+          .terms-ai-opacity-slider::-moz-range-track {
+            height: 1px;
+            background: #9ca3af;
+            border-radius: 999px;
+          }
+
+          .terms-ai-opacity-slider::-moz-range-thumb {
+            width: 8px;
+            height: 8px;
+            border: 1px solid #9ca3af;
+            border-radius: 50%;
+            background: #f9fafb;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+          }
         `}
       </style>
       <header
@@ -201,6 +247,17 @@ export function FloatingPanel({ terms, onClose }: Props) {
           </div>
         </div>
         <div style={styles.headerActions}>
+          <input
+            type="range"
+            min="0.35"
+            max="1"
+            step="0.05"
+            value={panelOpacity}
+            className="terms-ai-opacity-slider"
+            onChange={(event) => setPanelOpacity(Number(event.currentTarget.value))}
+            onPointerDown={(event) => event.stopPropagation()}
+            aria-label="투명도 조절"
+          />
           <button
             type="button"
             style={styles.iconButton}
@@ -367,8 +424,8 @@ const styles: Record<string, CSSProperties> = {
     color: '#6b7280',
   },
   iconButton: {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -377,53 +434,53 @@ const styles: Record<string, CSSProperties> = {
     background: 'transparent',
     color: '#6b7280',
     cursor: 'pointer',
-    fontSize: 22,
-    lineHeight: '24px',
+    fontSize: 18,
+    lineHeight: '20px',
   },
   headerActions: {
     display: 'flex',
     alignItems: 'center',
-    gap: 2,
+    gap: 4,
     flexShrink: 0,
   },
   minimizeIcon: {
     display: 'block',
-    width: 14,
+    width: 12,
     height: 2,
-    background: '#4b5563',
+    background: '#6b7280',
     borderRadius: 1,
   },
   maximizeIcon: {
     display: 'block',
-    width: 13,
-    height: 10,
-    border: '2px solid #4b5563',
+    width: 11,
+    height: 9,
+    border: '2px solid #6b7280',
     boxSizing: 'border-box',
   },
   closeIcon: {
     position: 'relative',
     display: 'block',
-    width: 15,
-    height: 15,
+    width: 13,
+    height: 13,
   },
   closeIconLine: {
     position: 'absolute',
-    top: 6,
+    top: 5,
     left: 0,
-    width: 16,
+    width: 14,
     height: 2,
-    background: '#4b5563',
+    background: '#6b7280',
     borderRadius: 1,
     transform: 'rotate(45deg)',
     transformOrigin: 'center',
   },
   closeIconLineReverse: {
     position: 'absolute',
-    top: 6,
+    top: 5,
     left: 0,
-    width: 16,
+    width: 14,
     height: 2,
-    background: '#4b5563',
+    background: '#6b7280',
     borderRadius: 1,
     transform: 'rotate(-45deg)',
     transformOrigin: 'center',
