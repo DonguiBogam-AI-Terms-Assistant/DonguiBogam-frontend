@@ -14,6 +14,7 @@ type SidePanelWithNewApis = typeof chrome.sidePanel & {
 };
 
 const openPanelTabs = new Set<number>();
+const openPanelWindowByTab = new Map<number, number>();
 const recentClosedEvents = new Map<number, number>();
 
 export async function openTabSpecificPanel(tab: chrome.tabs.Tab): Promise<void> {
@@ -65,22 +66,47 @@ export function registerSidePanelLifecycleEvents(): void {
 export function markPanelOpened(tabId: number, _windowId?: number, _reason?: string): void {
   recentClosedEvents.delete(tabId);
   openPanelTabs.add(tabId);
+  if (_windowId) {
+    openPanelWindowByTab.set(tabId, _windowId);
+  }
 }
 
-export function markPanelClosed(tabId?: number, windowId?: number, reason?: string, path = PANEL_PATH): void {
+export function markPanelClosed(
+  tabId?: number,
+  windowId?: number,
+  reason?: string,
+  path = PANEL_PATH
+): Promise<void> {
   if (tabId) {
     const wasTrackedOpen = openPanelTabs.delete(tabId);
+    openPanelWindowByTab.delete(tabId);
     const isBrowserCloseSignal =
-      reason === 'browser_event' || reason === 'port_disconnect' || reason === 'panel_unload';
-    if (!wasTrackedOpen && !isBrowserCloseSignal) return;
+      reason === 'browser_event' ||
+      reason === 'port_disconnect' ||
+      reason === 'panel_unload' ||
+      reason === 'tab_removed' ||
+      reason === 'tab_navigation' ||
+      reason === 'window_removed';
+    if (!wasTrackedOpen && !isBrowserCloseSignal) return Promise.resolve();
 
     const now = Date.now();
     const recentClosedAt = recentClosedEvents.get(tabId);
-    if (recentClosedAt && now - recentClosedAt < 1000) return;
+    if (recentClosedAt && now - recentClosedAt < 1000) return Promise.resolve();
     recentClosedEvents.set(tabId, now);
   }
 
-  notifyPanelClosed(tabId, windowId, reason, path).catch(console.error);
+  return notifyPanelClosed(tabId, windowId, reason, path).catch(console.error);
+}
+
+export async function markPanelsClosedForWindow(
+  windowId: number,
+  reason = 'window_removed'
+): Promise<void> {
+  const tabIds = [...openPanelWindowByTab.entries()]
+    .filter(([, trackedWindowId]) => trackedWindowId === windowId)
+    .map(([tabId]) => tabId);
+
+  await Promise.all(tabIds.map((tabId) => markPanelClosed(tabId, windowId, reason)));
 }
 
 async function notifyPanelClosed(
@@ -128,6 +154,7 @@ export async function disablePanelForTab(tabId: number): Promise<void> {
 
 export async function clearPanelTab(tabId: number): Promise<void> {
   openPanelTabs.delete(tabId);
+  openPanelWindowByTab.delete(tabId);
   await disablePanelForTab(tabId);
 }
 

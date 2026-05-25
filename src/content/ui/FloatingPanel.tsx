@@ -17,6 +17,8 @@ import { sendMessage } from '@shared/messages';
 
 interface Props {
   terms: TermsDocument;
+  isMinimized: boolean;
+  onToggleMinimized: () => void;
   onClose: () => void;
 }
 
@@ -26,7 +28,7 @@ const SUMMARY_DEFAULT_PERCENT = 42;
 const SUMMARY_MIN_HEIGHT = 120;
 const CHAT_MIN_HEIGHT = 120;
 
-export function FloatingPanel({ terms, onClose }: Props) {
+export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }: Props) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ offsetX: number; offsetY: number } | null>(null);
@@ -34,7 +36,6 @@ export function FloatingPanel({ terms, onClose }: Props) {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizingSections, setIsResizingSections] = useState(false);
   const [summaryHeightPercent, setSummaryHeightPercent] = useState(SUMMARY_DEFAULT_PERCENT);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [panelOpacity, setPanelOpacity] = useState(1);
   const [tabState, setTabState] = useState<TabState | null>(null);
 
@@ -45,7 +46,6 @@ export function FloatingPanel({ terms, onClose }: Props) {
     sendUserMessage,
     retryMessage,
     clearError,
-    clearHistory,
   } = useChat(CONTENT_TAB_ID, tabState?.chatHistory ?? [], tabState?.sessionId ?? null);
   const { summary, isLoading: summaryLoading, error: summaryError, requestSummary } =
     useSummarize(CONTENT_TAB_ID);
@@ -172,22 +172,13 @@ export function FloatingPanel({ terms, onClose }: Props) {
     [chatLoading, sendUserMessage]
   );
 
-  const clearConversation = useCallback(() => {
-    clearHistory();
-    void sendMessage({
-      type: 'CLEAR_CONVERSATION',
-      payload: { tabId: CONTENT_TAB_ID },
-    }).catch(console.error);
-  }, [clearHistory]);
-
   const handleClose = useCallback(() => {
-    clearConversation();
     onClose();
-  }, [clearConversation, onClose]);
+  }, [onClose]);
 
   const handleToggleMinimized = useCallback(() => {
-    setIsMinimized((current) => !current);
-  }, []);
+    onToggleMinimized();
+  }, [onToggleMinimized]);
 
   useEffect(() => {
     if (!hasConversation) {

@@ -1,19 +1,19 @@
 import { StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { TermsDocument } from '@shared/types';
-import { sendMessage } from '@shared/messages';
 import { FloatingPanel } from './FloatingPanel';
 
 const PANEL_ID = 'terms-ai-floating-panel-host';
-const CONTENT_TAB_ID = 0;
 
 let hostEl: HTMLElement | null = null;
 let mountEl: HTMLDivElement | null = null;
 let root: Root | null = null;
 let currentTerms: TermsDocument | null = null;
+let isPanelMinimized = false;
 
 export function showFloatingPanel(terms: TermsDocument): void {
   currentTerms = terms;
+  isPanelMinimized = false;
 
   if (!hostEl) {
     hostEl = document.createElement('div');
@@ -39,12 +39,8 @@ export function showFloatingPanel(terms: TermsDocument): void {
 }
 
 export function hideFloatingPanel(): void {
-  void sendMessage({
-    type: 'CLEAR_CONVERSATION',
-    payload: { tabId: CONTENT_TAB_ID },
-  }).catch(console.error);
-
   currentTerms = null;
+  isPanelMinimized = false;
   root?.unmount();
   root = null;
   mountEl = null;
@@ -54,7 +50,7 @@ export function hideFloatingPanel(): void {
 
 export function toggleFloatingPanel(terms: TermsDocument): void {
   if (hostEl) {
-    hideFloatingPanel();
+    toggleFloatingPanelMinimized();
     return;
   }
 
@@ -70,7 +66,18 @@ function renderPanel(): void {
 
   root.render(
     <StrictMode>
-      <FloatingPanel terms={currentTerms} onClose={hideFloatingPanel} />
+      <FloatingPanel
+        terms={currentTerms}
+        isMinimized={isPanelMinimized}
+        onToggleMinimized={toggleFloatingPanelMinimized}
+        onClose={hideFloatingPanel}
+      />
     </StrictMode>
   );
+}
+
+function toggleFloatingPanelMinimized(): void {
+  if (!hostEl) return;
+  isPanelMinimized = !isPanelMinimized;
+  renderPanel();
 }

@@ -1,27 +1,28 @@
 import { setupMessageRouter } from './messageRouter';
-import { clearTabState } from './storageManager';
+import { clearTabState, getTabState } from './storageManager';
 import {
   clearPanelTab,
   disablePanelForTab,
   markPanelClosed,
+  markPanelsClosedForWindow,
   registerSidePanelLifecycleEvents,
 } from './sidePanelManager';
 
 setupMessageRouter();
 registerSidePanelLifecycleEvents();
 
-chrome.tabs.onRemoved.addListener((tabId) => {
-  clearTabState(tabId).catch(console.error);
-  clearPanelTab(tabId).catch(console.error);
-  chrome.action.setBadgeText({ text: '', tabId });
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+  handleTabRemoved(tabId, removeInfo).catch(console.error);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === 'loading') {
-    clearTabState(tabId).catch(console.error);
-    disablePanelForTab(tabId).catch(console.error);
-    chrome.action.setBadgeText({ text: '', tabId });
+    handleTabNavigation(tabId).catch(console.error);
   }
+});
+
+chrome.windows.onRemoved.addListener((windowId) => {
+  markPanelsClosedForWindow(windowId).catch(console.error);
 });
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -51,3 +52,31 @@ chrome.runtime.onConnect.addListener((port) => {
 });
 
 console.log('[TermsAI] Background service worker started');
+
+async function handleTabRemoved(
+  tabId: number,
+  removeInfo: chrome.tabs.TabRemoveInfo
+): Promise<void> {
+  const state = await getTabState(tabId);
+
+  if (state?.status === 'panel_open' || state?.sessionId) {
+    await markPanelClosed(tabId, removeInfo.windowId, 'tab_removed', 'floating-panel');
+  }
+
+  await clearTabState(tabId);
+  await clearPanelTab(tabId);
+  chrome.action.setBadgeText({ text: '', tabId }).catch(console.error);
+}
+
+async function handleTabNavigation(tabId: number): Promise<void> {
+  const state = await getTabState(tabId);
+
+  if (state?.status === 'panel_open' || state?.sessionId) {
+    const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+    await markPanelClosed(tabId, tab?.windowId, 'tab_navigation', 'floating-panel');
+  }
+
+  await clearTabState(tabId);
+  await disablePanelForTab(tabId);
+  chrome.action.setBadgeText({ text: '', tabId }).catch(console.error);
+}

@@ -356,6 +356,7 @@ export async function notifyPanelEvent(event: {
   const res = await fetch(`${baseUrl}/panel/events`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    keepalive: true,
     body: JSON.stringify(event),
   });
 
