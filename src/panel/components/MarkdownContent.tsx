@@ -54,6 +54,8 @@ function normalizeMarkdownText(value: string): string {
   return decodeBasicHtmlEntities(value)
     .replace(/\\n/g, '\n')
     .replace(/\r\n?/g, '\n')
+    .replace(/([^\n]) {2,}([-*+] (?=\*\*|\S))/g, '$1\n\n$2')
+    .replace(/([.!?]) {2,}(?=[^\s-])/g, '$1\n\n')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')
     .replace(/<p[^>]*>/gi, '')
