@@ -8,6 +8,7 @@ const PANEL_ID = 'terms-ai-floating-panel-host';
 const CONTENT_TAB_ID = 0;
 
 let hostEl: HTMLElement | null = null;
+let mountEl: HTMLDivElement | null = null;
 let root: Root | null = null;
 let currentTerms: TermsDocument | null = null;
 
@@ -17,8 +18,21 @@ export function showFloatingPanel(terms: TermsDocument): void {
   if (!hostEl) {
     hostEl = document.createElement('div');
     hostEl.id = PANEL_ID;
+    const shadowRoot = hostEl.attachShadow({ mode: 'open' });
+    const resetStyle = document.createElement('style');
+    resetStyle.textContent = `
+      :host {
+        all: initial;
+      }
+
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+    `;
+    mountEl = document.createElement('div');
+    shadowRoot.append(resetStyle, mountEl);
     document.body.appendChild(hostEl);
-    root = createRoot(hostEl);
+    root = createRoot(mountEl);
   }
 
   renderPanel();
@@ -33,6 +47,7 @@ export function hideFloatingPanel(): void {
   currentTerms = null;
   root?.unmount();
   root = null;
+  mountEl = null;
   hostEl?.remove();
   hostEl = null;
 }
