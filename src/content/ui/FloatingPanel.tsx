@@ -22,12 +22,18 @@ interface Props {
 
 const CONTENT_TAB_ID = 0;
 const VIEWPORT_MARGIN = 8;
+const SUMMARY_DEFAULT_PERCENT = 42;
+const SUMMARY_MIN_HEIGHT = 120;
+const CHAT_MIN_HEIGHT = 120;
 
 export function FloatingPanel({ terms, onClose }: Props) {
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ offsetX: number; offsetY: number } | null>(null);
   const [panelPosition, setPanelPosition] = useState<{ left: number; top: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizingSections, setIsResizingSections] = useState(false);
+  const [summaryHeightPercent, setSummaryHeightPercent] = useState(SUMMARY_DEFAULT_PERCENT);
   const [isMinimized, setIsMinimized] = useState(false);
   const [panelOpacity, setPanelOpacity] = useState(1);
   const [tabState, setTabState] = useState<TabState | null>(null);
@@ -52,6 +58,7 @@ export function FloatingPanel({ terms, onClose }: Props) {
 
     return latestAssistantQuestions ?? summary?.suggested_questions ?? [];
   }, [history, summary?.suggested_questions]);
+  const hasConversation = history.length > 0;
 
   const shellStyle: CSSProperties = {
     ...styles.shell,
@@ -107,6 +114,55 @@ export function FloatingPanel({ terms, onClose }: Props) {
     }
   }, []);
 
+  const updateSummaryHeightFromPointer = useCallback((clientY: number) => {
+    if (!bodyRef.current) return;
+
+    const rect = bodyRef.current.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle(bodyRef.current);
+    const paddingTop = Number.parseFloat(computedStyle.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(computedStyle.paddingBottom) || 0;
+    const contentTop = rect.top + paddingTop;
+    const contentHeight = rect.height - paddingTop - paddingBottom;
+    if (contentHeight <= 0) return;
+
+    const minPercent = Math.min(80, (SUMMARY_MIN_HEIGHT / contentHeight) * 100);
+    const maxPercent = Math.max(
+      minPercent,
+      ((contentHeight - CHAT_MIN_HEIGHT) / contentHeight) * 100
+    );
+    const nextPercent = ((clientY - contentTop) / contentHeight) * 100;
+
+    setSummaryHeightPercent(Math.min(maxPercent, Math.max(minPercent, nextPercent)));
+  }, []);
+
+  const handleSectionResizePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setIsResizingSections(true);
+      updateSummaryHeightFromPointer(event.clientY);
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    [updateSummaryHeightFromPointer]
+  );
+
+  const handleSectionResizePointerMove = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      if (!isResizingSections) return;
+      event.preventDefault();
+      updateSummaryHeightFromPointer(event.clientY);
+    },
+    [isResizingSections, updateSummaryHeightFromPointer]
+  );
+
+  const handleSectionResizePointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    setIsResizingSections(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
   const handleSuggestedQuestion = useCallback(
     (question: string) => {
       if (!chatLoading) {
@@ -132,6 +188,12 @@ export function FloatingPanel({ terms, onClose }: Props) {
   const handleToggleMinimized = useCallback(() => {
     setIsMinimized((current) => !current);
   }, []);
+
+  useEffect(() => {
+    if (!hasConversation) {
+      setSummaryHeightPercent(SUMMARY_DEFAULT_PERCENT);
+    }
+  }, [hasConversation]);
 
   useEffect(() => {
     if (!summary && !summaryLoading && !summaryError) {
@@ -175,6 +237,17 @@ export function FloatingPanel({ terms, onClose }: Props) {
             from {
               opacity: 0;
               transform: translateY(6px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          @keyframes conversationAreaEnter {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
             }
             to {
               opacity: 1;
@@ -287,66 +360,105 @@ export function FloatingPanel({ terms, onClose }: Props) {
 
       {!isMinimized && (
         <>
-      <div style={styles.body}>
-        <section style={styles.summaryArea}>
-          {summary ? <SummaryCard summary={summary} /> : <SummarySkeleton />}
-          {summaryError && (
-            <p style={styles.inlineError}>
-              {summaryError.code ? `Error (${summaryError.code}): ` : ''}
-              {summaryError.message}
-            </p>
-          )}
-        </section>
+          <div
+            ref={bodyRef}
+            style={{
+              ...styles.body,
+              ...(isResizingSections ? styles.bodyResizing : {}),
+            }}
+          >
+            <section
+              style={{
+                ...styles.summaryArea,
+                ...(hasConversation
+                  ? {
+                      ...styles.summaryAreaCompact,
+                      height: `${summaryHeightPercent}%`,
+                      ...(isResizingSections ? styles.summaryAreaResizing : {}),
+                    }
+                  : styles.summaryAreaExpanded),
+              }}
+            >
+              {summary ? <SummaryCard summary={summary} /> : <SummarySkeleton />}
+              {summaryError && (
+                <p style={styles.inlineError}>
+                  {summaryError.code ? `Error (${summaryError.code}): ` : ''}
+                  {summaryError.message}
+                </p>
+              )}
+            </section>
 
-        <div style={styles.sectionDivider} />
+            {hasConversation && (
+              <div style={styles.conversationArea}>
+                <div
+                  style={{
+                    ...styles.sectionResizeHandle,
+                    ...(isResizingSections ? styles.sectionResizeHandleActive : {}),
+                  }}
+                  role="separator"
+                  aria-label="AI 요약과 채팅창 크기 조절"
+                  aria-orientation="horizontal"
+                  aria-valuenow={Math.round(summaryHeightPercent)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  onPointerDown={handleSectionResizePointerDown}
+                  onPointerMove={handleSectionResizePointerMove}
+                  onPointerUp={handleSectionResizePointerUp}
+                  onPointerCancel={handleSectionResizePointerUp}
+                >
+                  <span style={styles.sectionResizeLine} />
+                  <span style={styles.sectionResizeGrip} />
+                </div>
 
-        <section style={styles.chatArea}>
-          <ChatWindow history={history} isLoading={chatLoading} onRetry={retryMessage} />
-          {chatError && (
-            <div style={styles.errorBanner}>
-              <span>
-                {chatError.code ? `Error (${chatError.code}): ` : ''}
-                {chatError.message}
-              </span>
-              <button type="button" style={styles.errorClose} onClick={clearError}>
-                닫기
-              </button>
+                <section style={styles.chatArea}>
+                  <ChatWindow history={history} isLoading={chatLoading} onRetry={retryMessage} />
+                  {chatError && (
+                    <div style={styles.errorBanner}>
+                      <span>
+                        {chatError.code ? `Error (${chatError.code}): ` : ''}
+                        {chatError.message}
+                      </span>
+                      <button type="button" style={styles.errorClose} onClick={clearError}>
+                        닫기
+                      </button>
+                    </div>
+                  )}
+                </section>
+              </div>
+            )}
+          </div>
+
+          {suggestedQuestions.length > 0 && (
+            <div style={styles.suggestedPanel}>
+              <span style={styles.suggestedLabel}>추천 질문</span>
+              <div style={styles.suggestedList}>
+                {suggestedQuestions.map((question, index) => (
+                  <div
+                    key={question}
+                    style={{
+                      ...styles.suggestedItem,
+                      animationDelay: `${index * 90}ms`,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      style={{
+                        ...styles.suggestedButton,
+                        opacity: chatLoading ? 0.55 : 1,
+                        cursor: chatLoading ? 'not-allowed' : 'pointer',
+                      }}
+                      onClick={() => handleSuggestedQuestion(question)}
+                      disabled={chatLoading}
+                    >
+                      {question}
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-        </section>
-      </div>
 
-      {suggestedQuestions.length > 0 && (
-        <div style={styles.suggestedPanel}>
-          <span style={styles.suggestedLabel}>추천 질문</span>
-          <div style={styles.suggestedList}>
-            {suggestedQuestions.map((question, index) => (
-              <div
-                key={question}
-                style={{
-                  ...styles.suggestedItem,
-                  animationDelay: `${index * 90}ms`,
-                }}
-              >
-                <button
-                  type="button"
-                  style={{
-                    ...styles.suggestedButton,
-                    opacity: chatLoading ? 0.55 : 1,
-                    cursor: chatLoading ? 'not-allowed' : 'pointer',
-                  }}
-                  onClick={() => handleSuggestedQuestion(question)}
-                  disabled={chatLoading}
-                >
-                  {question}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <ChatInput onSend={sendUserMessage} disabled={chatLoading} />
+          <ChatInput onSend={sendUserMessage} disabled={chatLoading} />
         </>
       )}
     </div>
@@ -495,18 +607,67 @@ const styles: Record<string, CSSProperties> = {
     boxSizing: 'border-box',
     background: '#fff',
   },
+  bodyResizing: {
+    cursor: 'row-resize',
+    userSelect: 'none',
+  },
   summaryArea: {
-    flex: '0 0 42%',
-    minHeight: 150,
+    height: '100%',
+    flexShrink: 0,
     display: 'flex',
     flexDirection: 'column',
     minWidth: 0,
+    transition:
+      'height 340ms cubic-bezier(0.22, 1, 0.36, 1), min-height 340ms cubic-bezier(0.22, 1, 0.36, 1)',
+    willChange: 'height',
   },
-  sectionDivider: {
+  summaryAreaCompact: {
+    height: '42%',
+    minHeight: SUMMARY_MIN_HEIGHT,
+  },
+  summaryAreaResizing: {
+    transition: 'none',
+  },
+  summaryAreaExpanded: {
+    height: '100%',
+    minHeight: 0,
+  },
+  conversationArea: {
+    flex: 1,
+    minHeight: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    animation: 'conversationAreaEnter 280ms cubic-bezier(0.22, 1, 0.36, 1) both',
+  },
+  sectionResizeHandle: {
+    position: 'relative',
+    height: 18,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    margin: '2px 0 6px',
+    cursor: 'row-resize',
+    touchAction: 'none',
+    borderRadius: 8,
+  },
+  sectionResizeHandleActive: {
+    background: '#f8fafc',
+  },
+  sectionResizeLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
     height: 1,
     background: '#e5e7eb',
-    flexShrink: 0,
-    margin: '10px 0',
+  },
+  sectionResizeGrip: {
+    position: 'relative',
+    width: 34,
+    height: 4,
+    borderRadius: 999,
+    background: '#c7d2fe',
+    boxShadow: '0 0 0 3px #fff',
   },
   chatArea: {
     flex: 1,

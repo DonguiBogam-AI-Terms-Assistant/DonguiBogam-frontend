@@ -28,6 +28,7 @@ export interface ChatTurn {
   timestamp: number;
   status?: 'sending' | 'sent' | 'failed';
   idempotencyKey?: string;
+  replyToId?: string;
   suggestedQuestions?: string[];
 }
 

@@ -15,10 +15,10 @@ import type {
   ChatQueryRequest,
   ChatFollowupRequest,
   ChatQueryResponse,
+  ChatTurn,
 } from '@shared/types';
 import { clearTabConversation, getTabState, setTabState } from './storageManager';
-import { summarize, chatQuery } from './api/client';
-import { generateId } from '@shared/utils';
+import { summarize, chatQueryStream } from './api/client';
 import {
   disablePanelOnOtherTabs,
   enablePanelForTab,
@@ -32,6 +32,10 @@ type SendResponse = (response: ExtMessage) => void;
 export function setupMessageRouter(): void {
   chrome.runtime.onMessage.addListener(
     (message: ExtMessage, sender, sendResponse: SendResponse) => {
+      if (isChatStreamMessage(message)) {
+        return false;
+      }
+
       // 비동기 응답을 위해 true 반환
       handleMessage(message, sender, sendResponse);
       return true;
@@ -146,7 +150,7 @@ async function handleMessage(
       }
 
       case 'CHAT_REQUEST': {
-        const { userMessage, userTurnId, idempotencyKey } = message.payload;
+        const { userMessage, userTurnId, assistantTurnId, idempotencyKey } = message.payload;
         const tabId = sender.tab?.id ?? message.payload.tabId;
         const state = await getTabState(tabId);
 
@@ -160,69 +164,35 @@ async function handleMessage(
         }
 
         try {
-          let chatResponse: ChatQueryResponse;
-
-          // 첫 요청 vs 후속 요청 분기
-          if (!state.sessionId) {
-            // 첫 요청: canonical_url, raw_text, query 포함
-            const request: ChatQueryRequest = {
-              canonical_url: state.terms.sourceUrl,
-              raw_text: state.terms.plainText,
-              query: userMessage,
-            };
-            chatResponse = await chatQuery(request, idempotencyKey);
-
-            // 새 sessionId 저장
-            await setTabState({
-              ...state,
-              sessionId: chatResponse.session_id,
-            });
-          } else {
-            // 후속 요청: session_id, query만 포함
-            const request: ChatFollowupRequest = {
-              session_id: state.sessionId,
-              query: userMessage,
-            };
-            chatResponse = await chatQuery(request, idempotencyKey);
-          }
-
-          // 채팅 히스토리에 user + assistant 턴 추가
-          const userTurn = {
-            id: userTurnId,
-            role: 'user' as const,
-            content: userMessage,
-            timestamp: Date.now(),
-            status: 'sent' as const,
+          const payload = await handleChatStreamRequest({
+            tabId,
+            state,
+            userMessage,
+            userTurnId,
+            assistantTurnId,
             idempotencyKey,
-          };
-          const assistantTurn = {
-            id: generateId(),
-            role: 'assistant' as const,
-            content: chatResponse.answer,
-            timestamp: Date.now(),
-            status: 'sent' as const,
-            suggestedQuestions: chatResponse.suggested_questions,
-          };
-
-          await setTabState({
-            ...state,
-            sessionId: chatResponse.session_id, // 갱신 (안전성)
-            chatHistory: [...state.chatHistory, userTurn, assistantTurn],
           });
-
-          const payload: ChatResponsePayload = {
-            turn: assistantTurn,
-            sessionId: chatResponse.session_id,
-            suggestedQuestions: chatResponse.suggested_questions,
-          };
           sendResponse({ type: 'CHAT_RESPONSE', payload });
         } catch (err) {
           const errorMessage = err instanceof Error ? err.message : '채팅 요청 실패';
           // Backend 에러 형식 파싱 시도
-          let code = 'chat_error';
+          let code =
+            typeof err === 'object' && err !== null && 'code' in err && typeof err.code === 'string'
+              ? err.code
+              : 'chat_error';
           if (err instanceof Error && err.message.includes('document_not_found')) {
             code = 'document_not_found';
           }
+          await emitChatStreamMessage(tabId, {
+            type: 'CHAT_STREAM_ERROR',
+            payload: {
+              tabId,
+              userTurnId,
+              assistantTurnId,
+              code,
+              message: errorMessage,
+            },
+          });
           const payload: ErrorPayload = {
             code,
             message: errorMessage,
@@ -281,4 +251,144 @@ async function handleMessage(
     };
     sendResponse({ type: 'ERROR', payload });
   }
+}
+
+interface ChatStreamRequestArgs {
+  tabId: number;
+  state: TabState;
+  userMessage: string;
+  userTurnId: string;
+  assistantTurnId: string;
+  idempotencyKey: string;
+}
+
+async function handleChatStreamRequest({
+  tabId,
+  state,
+  userMessage,
+  userTurnId,
+  assistantTurnId,
+  idempotencyKey,
+}: ChatStreamRequestArgs): Promise<ChatResponsePayload> {
+  const request: ChatQueryRequest | ChatFollowupRequest = state.sessionId
+    ? {
+        session_id: state.sessionId,
+        query: userMessage,
+      }
+    : {
+        canonical_url: state.terms!.sourceUrl,
+        raw_text: state.terms!.plainText,
+        query: userMessage,
+      };
+
+  const chatResponse: ChatQueryResponse = await chatQueryStream(request, idempotencyKey, {
+    onStart: (mode) => {
+      void emitChatStreamMessage(tabId, {
+        type: 'CHAT_STREAM_START',
+        payload: {
+          tabId,
+          userTurnId,
+          assistantTurnId,
+          mode,
+        },
+      });
+    },
+    onProgress: (stage) => {
+      void emitChatStreamMessage(tabId, {
+        type: 'CHAT_STREAM_PROGRESS',
+        payload: {
+          tabId,
+          userTurnId,
+          assistantTurnId,
+          stage,
+        },
+      });
+    },
+    onDelta: (text) => {
+      void emitChatStreamMessage(tabId, {
+        type: 'CHAT_STREAM_DELTA',
+        payload: {
+          tabId,
+          userTurnId,
+          assistantTurnId,
+          text,
+        },
+      });
+    },
+  });
+
+  const userTurn: ChatTurn = {
+    id: userTurnId,
+    role: 'user',
+    content: userMessage,
+    timestamp: Date.now(),
+    status: 'sent',
+    idempotencyKey,
+  };
+  const assistantTurn: ChatTurn = {
+    id: assistantTurnId,
+    role: 'assistant',
+    content: chatResponse.answer,
+    timestamp: Date.now(),
+    status: 'sent',
+    replyToId: userTurnId,
+    suggestedQuestions: chatResponse.suggested_questions,
+  };
+
+  const latestState = (await getTabState(tabId)) ?? state;
+  const historyWithoutCurrentTurn = latestState.chatHistory.filter(
+    (turn) => turn.id !== userTurnId && turn.id !== assistantTurnId && turn.replyToId !== userTurnId
+  );
+
+  await setTabState({
+    ...latestState,
+    sessionId: chatResponse.session_id,
+    chatHistory: [...historyWithoutCurrentTurn, userTurn, assistantTurn],
+  });
+
+  const payload: ChatResponsePayload = {
+    turn: assistantTurn,
+    sessionId: chatResponse.session_id,
+    suggestedQuestions: chatResponse.suggested_questions,
+  };
+
+  await emitChatStreamMessage(tabId, {
+    type: 'CHAT_STREAM_FINAL',
+    payload: {
+      tabId,
+      userTurnId,
+      assistantTurnId,
+      ...payload,
+    },
+  });
+
+  return payload;
+}
+
+async function emitChatStreamMessage(
+  tabId: number,
+  message: Extract<
+    ExtMessage,
+    {
+      type:
+        | 'CHAT_STREAM_START'
+        | 'CHAT_STREAM_PROGRESS'
+        | 'CHAT_STREAM_DELTA'
+        | 'CHAT_STREAM_FINAL'
+        | 'CHAT_STREAM_ERROR';
+    }
+  >
+): Promise<void> {
+  const deliveries: Promise<unknown>[] = [];
+
+  if (tabId) {
+    deliveries.push(chrome.tabs.sendMessage(tabId, message).catch(() => undefined));
+  }
+
+  deliveries.push(chrome.runtime.sendMessage(message).catch(() => undefined));
+  await Promise.allSettled(deliveries);
+}
+
+function isChatStreamMessage(message: ExtMessage): boolean {
+  return message.type.startsWith('CHAT_STREAM_');
 }

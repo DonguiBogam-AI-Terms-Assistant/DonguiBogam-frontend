@@ -7,7 +7,7 @@ interface Props {
 }
 
 export function MarkdownContent({ children, variant = 'chat' }: Props) {
-  const text = children.replace(/\\n/g, '\n');
+  const text = normalizeMarkdownText(children);
   const isChat = variant === 'chat';
 
   return (
@@ -26,7 +26,7 @@ export function MarkdownContent({ children, variant = 'chat' }: Props) {
           ),
           p: ({ children }) => <p style={styles.paragraph}>{children}</p>,
           ul: ({ children }) => <ul style={styles.list}>{children}</ul>,
-          ol: ({ children }) => <ol style={styles.list}>{children}</ol>,
+          ol: ({ children }) => <ol style={{ ...styles.list, ...styles.orderedList }}>{children}</ol>,
           li: ({ children }) => <li style={styles.listItem}>{children}</li>,
           strong: ({ children }) => <strong style={styles.strong}>{children}</strong>,
           blockquote: ({ children }) => (
@@ -48,6 +48,43 @@ export function MarkdownContent({ children, variant = 'chat' }: Props) {
       </ReactMarkdown>
     </div>
   );
+}
+
+function normalizeMarkdownText(value: string): string {
+  return decodeBasicHtmlEntities(value)
+    .replace(/\\n/g, '\n')
+    .replace(/\r\n?/g, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>\s*<p[^>]*>/gi, '\n\n')
+    .replace(/<p[^>]*>/gi, '')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<strong[^>]*>/gi, '**')
+    .replace(/<\/strong>/gi, '**')
+    .replace(/<b[^>]*>/gi, '**')
+    .replace(/<\/b>/gi, '**')
+    .replace(/<em[^>]*>/gi, '*')
+    .replace(/<\/em>/gi, '*')
+    .replace(/<i[^>]*>/gi, '*')
+    .replace(/<\/i>/gi, '*')
+    .replace(/<ul[^>]*>/gi, '\n')
+    .replace(/<\/ul>/gi, '\n')
+    .replace(/<ol[^>]*>/gi, '\n')
+    .replace(/<\/ol>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '\n- ')
+    .replace(/<\/li>/gi, '')
+    .replace(/<\/?[^>]+>/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function decodeBasicHtmlEntities(value: string): string {
+  return value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'");
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -83,8 +120,14 @@ const styles: Record<string, React.CSSProperties> = {
   list: {
     margin: '0 0 8px',
     paddingLeft: 18,
+    listStyleType: 'disc',
+    listStylePosition: 'outside',
+  },
+  orderedList: {
+    listStyleType: 'decimal',
   },
   listItem: {
+    display: 'list-item',
     margin: '0 0 4px',
   },
   strong: {

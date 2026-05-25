@@ -10,6 +10,9 @@ interface Props {
 
 export function ChatWindow({ history, isLoading, onRetry }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const hasPendingAssistant = history.some(
+    (turn) => turn.role === 'assistant' && turn.status === 'sending'
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -43,37 +46,56 @@ export function ChatWindow({ history, isLoading, onRetry }: Props) {
               opacity: 1;
             }
           }
+
+          @keyframes chatSkeletonShimmer {
+            0% {
+              background-position: 120% 0;
+            }
+            100% {
+              background-position: -120% 0;
+            }
+          }
         `}
       </style>
 
-      {history.map((turn) => (
-        <div
-          key={turn.id}
-          style={{
-            ...styles.bubble,
-            ...(turn.role === 'user' ? styles.userBubble : styles.assistantBubble),
-          }}
-        >
-          {turn.role === 'assistant' ? (
-            <MarkdownContent>{turn.content}</MarkdownContent>
-          ) : (
-            <p style={styles.bubbleText}>{turn.content}</p>
-          )}
-          {turn.role === 'user' && turn.status === 'failed' && (
-            <button type="button" style={styles.retryButton} onClick={() => onRetry?.(turn)}>
-              Retry
-            </button>
-          )}
-          <span style={styles.timestamp}>
-            {new Date(turn.timestamp).toLocaleTimeString('ko-KR', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </span>
-        </div>
-      ))}
+      {history.map((turn) => {
+        const isPendingAssistant =
+          turn.role === 'assistant' && turn.status === 'sending' && !turn.content.trim();
 
-      {isLoading && (
+        return (
+          <div
+            key={turn.id}
+            style={{
+              ...styles.bubble,
+              ...(turn.role === 'user' ? styles.userBubble : styles.assistantBubble),
+              ...(isPendingAssistant ? styles.skeletonBubble : {}),
+            }}
+          >
+            {isPendingAssistant ? (
+              <AssistantSkeleton />
+            ) : turn.role === 'assistant' ? (
+              <MarkdownContent>{turn.content}</MarkdownContent>
+            ) : (
+              <p style={styles.bubbleText}>{turn.content}</p>
+            )}
+            {turn.role === 'user' && turn.status === 'failed' && (
+              <button type="button" style={styles.retryButton} onClick={() => onRetry?.(turn)}>
+                Retry
+              </button>
+            )}
+            {!isPendingAssistant && (
+              <span style={styles.timestamp}>
+                {new Date(turn.timestamp).toLocaleTimeString('ko-KR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            )}
+          </div>
+        );
+      })}
+
+      {isLoading && !hasPendingAssistant && (
         <div style={{ ...styles.bubble, ...styles.assistantBubble }}>
           <span style={styles.typing}>
             <span style={{ ...styles.typingDot, animationDelay: '0s' }}>{'\u25CF'}</span>
@@ -84,6 +106,16 @@ export function ChatWindow({ history, isLoading, onRetry }: Props) {
       )}
 
       <div ref={bottomRef} />
+    </div>
+  );
+}
+
+function AssistantSkeleton() {
+  return (
+    <div style={styles.skeletonStack} role="status" aria-label="AI 답변 생성 중">
+      <span style={{ ...styles.skeletonLine, width: '78%' }} />
+      <span style={{ ...styles.skeletonLine, width: '94%' }} />
+      <span style={{ ...styles.skeletonLine, width: '56%' }} />
     </div>
   );
 }
@@ -151,6 +183,29 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#f3f4f6',
     color: '#111827',
     borderBottomLeftRadius: 4,
+  },
+  skeletonBubble: {
+    width: '76%',
+    maxWidth: '76%',
+    padding: '13px 14px',
+    background: '#f8fafc',
+    border: '1px solid #e5e7eb',
+    boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+  },
+  skeletonStack: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    padding: '1px 0',
+  },
+  skeletonLine: {
+    display: 'block',
+    height: 10,
+    borderRadius: 999,
+    background:
+      'linear-gradient(90deg, #e5e7eb 0%, #eef2ff 34%, #c7d2fe 50%, #eef2ff 66%, #e5e7eb 100%)',
+    backgroundSize: '240% 100%',
+    animation: 'chatSkeletonShimmer 1.25s ease-in-out infinite',
   },
   bubbleText: {
     fontSize: 13,

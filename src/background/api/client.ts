@@ -10,6 +10,7 @@ import type {
   ChatQueryRequest,
   ChatFollowupRequest,
 } from '@shared/types';
+import { delay } from '@shared/utils';
 import {
   mockSummarize,
   mockChatQuery,
@@ -18,6 +19,16 @@ import {
 import { getOrCreateClientInstallId, getSettings } from '../storageManager';
 
 const DEFAULT_API_BASE_URL = 'http://localhost:8000';
+
+interface ApiError extends Error {
+  code?: string;
+}
+
+export interface ChatQueryStreamCallbacks {
+  onStart?: (mode: 'initial' | 'follow_up') => void;
+  onProgress?: (stage: string) => void;
+  onDelta?: (text: string) => void;
+}
 
 async function getApiBaseUrl(): Promise<string> {
   // TODO: settings에서 API URL을 읽어올 수 있도록 확장
@@ -99,6 +110,231 @@ export async function chatQuery(
   }
 
   return res.json() as Promise<ChatQueryResponse>;
+}
+
+/**
+ * 채팅 스트리밍 쿼리
+ * POST /chat/query/stream
+ */
+export async function chatQueryStream(
+  request: ChatQueryRequest | ChatFollowupRequest,
+  idempotencyKey: string,
+  callbacks: ChatQueryStreamCallbacks = {}
+): Promise<ChatQueryResponse> {
+  const { useMock } = await getSettings();
+  const mode = 'canonical_url' in request ? 'initial' : 'follow_up';
+
+  if (useMock) {
+    callbacks.onStart?.(mode);
+    await delay(180);
+    callbacks.onProgress?.('indexing');
+    await delay(180);
+    callbacks.onProgress?.('retrieval');
+
+    const response =
+      mode === 'initial'
+        ? await mockChatQuery(request as ChatQueryRequest)
+        : await mockChatFollowup(request as ChatFollowupRequest);
+
+    for (const chunk of splitIntoStreamingChunks(response.answer)) {
+      callbacks.onDelta?.(chunk);
+      await delay(45);
+    }
+
+    return response;
+  }
+
+  const baseUrl = await getApiBaseUrl();
+  const clientInstallId = await getOrCreateClientInstallId();
+  const res = await fetch(`${baseUrl}/chat/query/stream`, {
+    method: 'POST',
+    headers: {
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json',
+      'X-Client-Install-Id': clientInstallId,
+      'X-Idempotency-Key': idempotencyKey,
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw createApiError(errorData, `API error: ${res.status}`);
+  }
+
+  if (!res.body) {
+    throw createApiError({ code: 'stream_unavailable' }, 'Streaming response is unavailable.');
+  }
+
+  return readChatStream(res.body, callbacks);
+}
+
+async function readChatStream(
+  body: ReadableStream<Uint8Array>,
+  callbacks: ChatQueryStreamCallbacks
+): Promise<ChatQueryResponse> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let finalResponse: ChatQueryResponse | null = null;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+
+      let boundary = findSseBoundary(buffer);
+      while (boundary) {
+        const rawEvent = buffer.slice(0, boundary.index);
+        buffer = buffer.slice(boundary.index + boundary.length);
+        handleChatStreamEvent(rawEvent, callbacks, (response) => {
+          finalResponse = response;
+        });
+        boundary = findSseBoundary(buffer);
+      }
+
+      if (done) break;
+    }
+
+    if (buffer.trim()) {
+      handleChatStreamEvent(buffer, callbacks, (response) => {
+        finalResponse = response;
+      });
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (!finalResponse) {
+    throw createApiError(
+      { code: 'stream_closed_without_final' },
+      'Streaming response closed before final answer.'
+    );
+  }
+
+  return finalResponse;
+}
+
+function handleChatStreamEvent(
+  rawEvent: string,
+  callbacks: ChatQueryStreamCallbacks,
+  setFinalResponse: (response: ChatQueryResponse) => void
+): void {
+  const event = parseSseEvent(rawEvent);
+  if (!event.data) return;
+
+  const data = JSON.parse(event.data) as {
+    type?: string;
+    mode?: 'initial' | 'follow_up';
+    stage?: string;
+    text?: string;
+    session_id?: string;
+    answer?: string;
+    suggested_questions?: string[];
+    code?: string;
+    message?: string;
+  };
+  const type = event.name === 'message' ? data.type : event.name;
+
+  switch (type) {
+    case 'start':
+      callbacks.onStart?.(data.mode ?? 'initial');
+      break;
+    case 'progress':
+      if (data.stage) {
+        callbacks.onProgress?.(data.stage);
+      }
+      break;
+    case 'delta':
+      if (data.text) {
+        callbacks.onDelta?.(data.text);
+      }
+      break;
+    case 'final':
+      if (!data.session_id || typeof data.answer !== 'string') {
+        throw createApiError(
+          { code: 'invalid_stream_final' },
+          'Streaming final event is missing required fields.'
+        );
+      }
+      setFinalResponse({
+        session_id: data.session_id,
+        answer: data.answer,
+        suggested_questions: data.suggested_questions ?? [],
+      });
+      break;
+    case 'error':
+      throw createApiError(
+        { code: data.code, message: data.message },
+        'Streaming chat request failed.'
+      );
+    default:
+      break;
+  }
+}
+
+function parseSseEvent(rawEvent: string): { name: string; data: string } {
+  const lines = rawEvent.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+  let name = 'message';
+  const dataLines: string[] = [];
+
+  for (const line of lines) {
+    if (!line || line.startsWith(':')) continue;
+
+    const separatorIndex = line.indexOf(':');
+    const field = separatorIndex === -1 ? line : line.slice(0, separatorIndex);
+    const rawValue = separatorIndex === -1 ? '' : line.slice(separatorIndex + 1);
+    const value = rawValue.startsWith(' ') ? rawValue.slice(1) : rawValue;
+
+    if (field === 'event') {
+      name = value;
+    } else if (field === 'data') {
+      dataLines.push(value);
+    }
+  }
+
+  return { name, data: dataLines.join('\n') };
+}
+
+function findSseBoundary(buffer: string): { index: number; length: number } | null {
+  const boundaries = ['\r\n\r\n', '\n\n', '\r\r']
+    .map((token) => ({ index: buffer.indexOf(token), length: token.length }))
+    .filter((boundary) => boundary.index !== -1)
+    .sort((a, b) => a.index - b.index);
+
+  return boundaries[0] ?? null;
+}
+
+function splitIntoStreamingChunks(text: string): string[] {
+  const chunks = text.match(/.{1,18}(\s|$)|.{1,18}/g);
+  return chunks?.filter(Boolean) ?? [text];
+}
+
+function createApiError(errorData: unknown, fallbackMessage: string): ApiError {
+  const data = normalizeErrorData(errorData);
+  const error = new Error(data.message ?? fallbackMessage) as ApiError;
+  error.code = data.code;
+  return error;
+}
+
+function normalizeErrorData(errorData: unknown): { code?: string; message?: string } {
+  if (!errorData || typeof errorData !== 'object') {
+    return {};
+  }
+
+  const data = errorData as Record<string, unknown>;
+  const detail = data.detail && typeof data.detail === 'object' ? data.detail : data;
+  const detailRecord = detail as Record<string, unknown>;
+
+  return {
+    code: typeof detailRecord.code === 'string' ? detailRecord.code : undefined,
+    message:
+      typeof detailRecord.message === 'string'
+        ? detailRecord.message
+        : typeof detailRecord.error === 'string'
+          ? detailRecord.error
+          : undefined,
+  };
 }
 
 export async function notifyPanelEvent(event: {

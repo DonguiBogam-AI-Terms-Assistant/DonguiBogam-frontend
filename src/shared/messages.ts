@@ -11,6 +11,11 @@ export type MessageType =
   | 'TERMS_DATA'
   | 'CHAT_REQUEST'
   | 'CHAT_RESPONSE'
+  | 'CHAT_STREAM_START'
+  | 'CHAT_STREAM_PROGRESS'
+  | 'CHAT_STREAM_DELTA'
+  | 'CHAT_STREAM_FINAL'
+  | 'CHAT_STREAM_ERROR'
   | 'SUMMARIZE_REQUEST'
   | 'SUMMARIZE_RESPONSE'
   | 'ACK'
@@ -52,6 +57,7 @@ export interface ChatRequestPayload {
   userMessage: string;
   tabId: number;
   userTurnId: string;
+  assistantTurnId: string;
   idempotencyKey: string;
 }
 
@@ -59,6 +65,44 @@ export interface ChatResponsePayload {
   turn: ChatTurn;
   sessionId: string;
   suggestedQuestions: string[];
+}
+
+export interface ChatStreamStartPayload {
+  tabId: number;
+  userTurnId: string;
+  assistantTurnId: string;
+  mode: 'initial' | 'follow_up';
+}
+
+export interface ChatStreamProgressPayload {
+  tabId: number;
+  userTurnId: string;
+  assistantTurnId: string;
+  stage: string;
+}
+
+export interface ChatStreamDeltaPayload {
+  tabId: number;
+  userTurnId: string;
+  assistantTurnId: string;
+  text: string;
+}
+
+export interface ChatStreamFinalPayload {
+  tabId: number;
+  userTurnId: string;
+  assistantTurnId: string;
+  turn: ChatTurn;
+  sessionId: string;
+  suggestedQuestions: string[];
+}
+
+export interface ChatStreamErrorPayload {
+  tabId: number;
+  userTurnId: string;
+  assistantTurnId: string;
+  code: string;
+  message: string;
 }
 
 export interface SummarizeRequestPayload {
@@ -85,6 +129,11 @@ export type ExtMessage =
   | { type: 'TERMS_DATA'; payload: TermsDataPayload }
   | { type: 'CHAT_REQUEST'; payload: ChatRequestPayload }
   | { type: 'CHAT_RESPONSE'; payload: ChatResponsePayload }
+  | { type: 'CHAT_STREAM_START'; payload: ChatStreamStartPayload }
+  | { type: 'CHAT_STREAM_PROGRESS'; payload: ChatStreamProgressPayload }
+  | { type: 'CHAT_STREAM_DELTA'; payload: ChatStreamDeltaPayload }
+  | { type: 'CHAT_STREAM_FINAL'; payload: ChatStreamFinalPayload }
+  | { type: 'CHAT_STREAM_ERROR'; payload: ChatStreamErrorPayload }
   | { type: 'SUMMARIZE_REQUEST'; payload: SummarizeRequestPayload }
   | { type: 'SUMMARIZE_RESPONSE'; payload: SummarizeResponsePayload }
   | { type: 'ACK'; payload: Record<string, never> }
