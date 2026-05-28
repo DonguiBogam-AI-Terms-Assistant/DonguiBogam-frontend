@@ -30,6 +30,11 @@ export interface ChatQueryStreamCallbacks {
   onDelta?: (text: string) => void;
 }
 
+export interface SummaryStreamCallbacks {
+  onStart?: (cached: boolean) => void;
+  onDelta?: (text: string) => void;
+}
+
 async function getApiBaseUrl(): Promise<string> {
   // TODO: settings에서 API URL을 읽어올 수 있도록 확장
   return DEFAULT_API_BASE_URL;
@@ -69,6 +74,56 @@ export async function summarize(
   }
 
   return res.json() as Promise<SummarizeResponse>;
+}
+
+/**
+ * ?쎄? ?붿빟 ?ㅽ듃由щ컢 ?붿껌
+ * POST /documents/summary/stream
+ */
+export async function summarizeStream(
+  canonical_url: string,
+  page_title: string,
+  raw_text: string,
+  callbacks: SummaryStreamCallbacks = {}
+): Promise<SummarizeResponse> {
+  const { useMock } = await getSettings();
+
+  if (useMock) {
+    callbacks.onStart?.(false);
+    const response = await mockSummarize(canonical_url, page_title, raw_text);
+
+    for (const chunk of splitIntoStreamingChunks(response.summary)) {
+      callbacks.onDelta?.(chunk);
+      await delay(45);
+    }
+
+    return response;
+  }
+
+  const baseUrl = await getApiBaseUrl();
+  const res = await fetch(`${baseUrl}/documents/summary/stream`, {
+    method: 'POST',
+    headers: {
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      canonical_url,
+      page_title,
+      raw_text,
+    }),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw createApiError(errorData, `API error: ${res.status}`);
+  }
+
+  if (!res.body) {
+    throw createApiError({ code: 'stream_unavailable' }, 'Streaming response is unavailable.');
+  }
+
+  return readSummaryStream(res.body, callbacks);
 }
 
 /**
@@ -215,6 +270,52 @@ async function readChatStream(
   return finalResponse;
 }
 
+async function readSummaryStream(
+  body: ReadableStream<Uint8Array>,
+  callbacks: SummaryStreamCallbacks
+): Promise<SummarizeResponse> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let finalResponse: SummarizeResponse | null = null;
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+
+      let boundary = findSseBoundary(buffer);
+      while (boundary) {
+        const rawEvent = buffer.slice(0, boundary.index);
+        buffer = buffer.slice(boundary.index + boundary.length);
+        handleSummaryStreamEvent(rawEvent, callbacks, (response) => {
+          finalResponse = response;
+        });
+        boundary = findSseBoundary(buffer);
+      }
+
+      if (done) break;
+    }
+
+    if (buffer.trim()) {
+      handleSummaryStreamEvent(buffer, callbacks, (response) => {
+        finalResponse = response;
+      });
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (!finalResponse) {
+    throw createApiError(
+      { code: 'stream_closed_without_final' },
+      'Streaming response closed before final summary.'
+    );
+  }
+
+  return finalResponse;
+}
+
 function handleChatStreamEvent(
   rawEvent: string,
   callbacks: ChatQueryStreamCallbacks,
@@ -268,6 +369,57 @@ function handleChatStreamEvent(
         { code: data.code, message: data.message },
         'Streaming chat request failed.'
       );
+    default:
+      break;
+  }
+}
+
+function handleSummaryStreamEvent(
+  rawEvent: string,
+  callbacks: SummaryStreamCallbacks,
+  setFinalResponse: (response: SummarizeResponse) => void
+): void {
+  const event = parseSseEvent(rawEvent);
+  if (!event.data) return;
+
+  const data = JSON.parse(event.data) as {
+    type?: string;
+    cached?: boolean;
+    text?: string;
+    summary?: string;
+    suggested_questions?: string[];
+    code?: string;
+    message?: string;
+  };
+  const type = event.name === 'message' ? data.type : event.name;
+
+  switch (type) {
+    case 'start':
+      callbacks.onStart?.(Boolean(data.cached));
+      break;
+    case 'delta':
+      if (data.text) {
+        callbacks.onDelta?.(data.text);
+      }
+      break;
+    case 'final':
+      if (typeof data.summary !== 'string') {
+        throw createApiError(
+          { code: 'invalid_stream_final' },
+          'Streaming final event is missing required summary.'
+        );
+      }
+      setFinalResponse({
+        summary: data.summary,
+        suggested_questions: data.suggested_questions ?? [],
+      });
+      break;
+    case 'error':
+      throw createApiError(
+        { code: data.code, message: data.message },
+        'Streaming summary request failed.'
+      );
+      break;
     default:
       break;
   }

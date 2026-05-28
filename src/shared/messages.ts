@@ -18,6 +18,10 @@ export type MessageType =
   | 'CHAT_STREAM_ERROR'
   | 'SUMMARIZE_REQUEST'
   | 'SUMMARIZE_RESPONSE'
+  | 'SUMMARY_STREAM_START'
+  | 'SUMMARY_STREAM_DELTA'
+  | 'SUMMARY_STREAM_FINAL'
+  | 'SUMMARY_STREAM_ERROR'
   | 'ACK'
   | 'ERROR';
 
@@ -107,10 +111,37 @@ export interface ChatStreamErrorPayload {
 
 export interface SummarizeRequestPayload {
   tabId: number;
+  requestId: string;
 }
 
 export interface SummarizeResponsePayload {
   result: SummarizeResponse;
+}
+
+export interface SummaryStreamStartPayload {
+  tabId: number;
+  requestId: string;
+  cached: boolean;
+}
+
+export interface SummaryStreamDeltaPayload {
+  tabId: number;
+  requestId: string;
+  text: string;
+}
+
+export interface SummaryStreamFinalPayload {
+  tabId: number;
+  requestId: string;
+  result: SummarizeResponse;
+  cached?: boolean;
+}
+
+export interface SummaryStreamErrorPayload {
+  tabId: number;
+  requestId: string;
+  code: string;
+  message: string;
 }
 
 export interface ErrorPayload {
@@ -136,6 +167,10 @@ export type ExtMessage =
   | { type: 'CHAT_STREAM_ERROR'; payload: ChatStreamErrorPayload }
   | { type: 'SUMMARIZE_REQUEST'; payload: SummarizeRequestPayload }
   | { type: 'SUMMARIZE_RESPONSE'; payload: SummarizeResponsePayload }
+  | { type: 'SUMMARY_STREAM_START'; payload: SummaryStreamStartPayload }
+  | { type: 'SUMMARY_STREAM_DELTA'; payload: SummaryStreamDeltaPayload }
+  | { type: 'SUMMARY_STREAM_FINAL'; payload: SummaryStreamFinalPayload }
+  | { type: 'SUMMARY_STREAM_ERROR'; payload: SummaryStreamErrorPayload }
   | { type: 'ACK'; payload: Record<string, never> }
   | { type: 'ERROR'; payload: ErrorPayload };
 

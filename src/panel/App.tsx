@@ -17,7 +17,13 @@ export function App() {
     retryMessage,
     clearError,
   } = useChat(tabId, tabState?.chatHistory ?? [], tabState?.sessionId ?? null);
-  const { summary, isLoading: summaryLoading, error: summaryError, requestSummary } = useSummarize(tabId);
+  const {
+    summary,
+    summaryAnimateFrom,
+    isLoading: summaryLoading,
+    error: summaryError,
+    requestSummary,
+  } = useSummarize(tabId);
   const suggestedQuestions = useMemo(() => {
     const latestAssistantQuestions = [...history]
       .reverse()
@@ -108,7 +114,11 @@ export function App() {
 
       <div style={styles.contentArea}>
         <section style={styles.summarySection}>
-          {summary ? <SummaryCard summary={summary} /> : <SummarySkeleton />}
+          {summary ? (
+            <SummaryCard summary={summary} animateFrom={summaryAnimateFrom} />
+          ) : (
+            <SummarySkeleton />
+          )}
 
           {summaryError && (
             <p style={styles.inlineError}>

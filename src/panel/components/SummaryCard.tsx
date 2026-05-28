@@ -3,16 +3,23 @@ import { MarkdownContent } from './MarkdownContent';
 
 interface Props {
   summary: SummarizeResponse;
+  animateFrom?: number | null;
 }
 
-export function SummaryCard({ summary }: Props) {
+export function SummaryCard({ summary, animateFrom = null }: Props) {
   return (
     <div style={styles.card}>
       <div style={styles.header}>
         <span style={styles.title}>{'AI \uC694\uC57D'}</span>
       </div>
 
-      <MarkdownContent variant="summary">{summary.summary}</MarkdownContent>
+      <MarkdownContent
+        variant="summary"
+        animate={animateFrom !== null}
+        animateFrom={animateFrom ?? 0}
+      >
+        {summary.summary}
+      </MarkdownContent>
     </div>
   );
 }

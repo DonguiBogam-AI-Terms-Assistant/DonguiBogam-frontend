@@ -42,6 +42,36 @@ export function MarkdownContent({
 
   return (
     <div style={isChat ? styles.chatRoot : styles.summaryRoot}>
+      {animate && (
+        <style>
+          {`
+            @keyframes chatWordFadeIn {
+              from {
+                opacity: 0;
+                filter: blur(2px);
+              }
+              to {
+                opacity: 1;
+                filter: blur(0);
+              }
+            }
+
+            .terms-ai-fade-word {
+              opacity: 0;
+              filter: blur(2px);
+              animation: chatWordFadeIn 160ms ease-out forwards;
+            }
+
+            @media (prefers-reduced-motion: reduce) {
+              .terms-ai-fade-word {
+                animation: none;
+                opacity: 1;
+                filter: none;
+              }
+            }
+          `}
+        </style>
+      )}
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

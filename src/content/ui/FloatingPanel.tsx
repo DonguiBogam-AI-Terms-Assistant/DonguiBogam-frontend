@@ -82,8 +82,13 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
     retryMessage,
     clearError,
   } = useChat(CONTENT_TAB_ID, tabState?.chatHistory ?? [], tabState?.sessionId ?? null);
-  const { summary, isLoading: summaryLoading, error: summaryError, requestSummary } =
-    useSummarize(CONTENT_TAB_ID);
+  const {
+    summary,
+    summaryAnimateFrom,
+    isLoading: summaryLoading,
+    error: summaryError,
+    requestSummary,
+  } = useSummarize(CONTENT_TAB_ID);
 
   const suggestedQuestions = useMemo(() => {
     const latestAssistantQuestions = [...history]
@@ -483,7 +488,11 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
                   : styles.summaryAreaExpanded),
               }}
             >
-              {summary ? <SummaryCard summary={summary} /> : <SummarySkeleton />}
+              {summary ? (
+                <SummaryCard summary={summary} animateFrom={summaryAnimateFrom} />
+              ) : (
+                <SummarySkeleton />
+              )}
               {summaryError && (
                 <p style={styles.inlineError}>
                   {summaryError.code ? `Error (${summaryError.code}): ` : ''}

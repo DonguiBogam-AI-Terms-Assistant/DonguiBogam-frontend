@@ -16,9 +16,10 @@ import type {
   ChatFollowupRequest,
   ChatQueryResponse,
   ChatTurn,
+  SummarizeResponse,
 } from '@shared/types';
 import { clearTabConversation, getTabState, setTabState } from './storageManager';
-import { summarize, chatQueryStream } from './api/client';
+import { summarizeStream, chatQueryStream } from './api/client';
 import {
   disablePanelOnOtherTabs,
   enablePanelForTab,
@@ -32,7 +33,7 @@ type SendResponse = (response: ExtMessage) => void;
 export function setupMessageRouter(): void {
   chrome.runtime.onMessage.addListener(
     (message: ExtMessage, sender, sendResponse: SendResponse) => {
-      if (isChatStreamMessage(message)) {
+      if (isInternalStreamMessage(message)) {
         return false;
       }
 
@@ -203,6 +204,7 @@ async function handleMessage(
       }
 
       case 'SUMMARIZE_REQUEST': {
+        const { requestId } = message.payload;
         const tabId = sender.tab?.id ?? message.payload.tabId;
         const state = await getTabState(tabId);
 
@@ -217,11 +219,7 @@ async function handleMessage(
 
         try {
           // Backend 스펙에 맞게 필드명 변환
-          const result = await summarize(
-            state.terms.sourceUrl, // canonical_url
-            state.terms.title, // page_title
-            state.terms.plainText // raw_text
-          );
+          const result = await handleSummaryStreamRequest(tabId, state, requestId);
 
           const payload: SummarizeResponsePayload = { result };
           sendResponse({ type: 'SUMMARIZE_RESPONSE', payload });
@@ -231,6 +229,15 @@ async function handleMessage(
           if (err instanceof Error && err.message.includes('raw_text_too_short')) {
             code = 'raw_text_too_short';
           }
+          await emitSummaryStreamMessage(tabId, {
+            type: 'SUMMARY_STREAM_ERROR',
+            payload: {
+              tabId,
+              requestId,
+              code,
+              message: errorMessage,
+            },
+          });
           const payload: ErrorPayload = {
             code,
             message: errorMessage,
@@ -251,6 +258,51 @@ async function handleMessage(
     };
     sendResponse({ type: 'ERROR', payload });
   }
+}
+
+async function handleSummaryStreamRequest(
+  tabId: number,
+  state: TabState,
+  requestId: string
+): Promise<SummarizeResponse> {
+  const result = await summarizeStream(
+    state.terms!.sourceUrl,
+    state.terms!.title,
+    state.terms!.plainText,
+    {
+      onStart: (cached) => {
+        void emitSummaryStreamMessage(tabId, {
+          type: 'SUMMARY_STREAM_START',
+          payload: {
+            tabId,
+            requestId,
+            cached,
+          },
+        });
+      },
+      onDelta: (text) => {
+        void emitSummaryStreamMessage(tabId, {
+          type: 'SUMMARY_STREAM_DELTA',
+          payload: {
+            tabId,
+            requestId,
+            text,
+          },
+        });
+      },
+    }
+  );
+
+  await emitSummaryStreamMessage(tabId, {
+    type: 'SUMMARY_STREAM_FINAL',
+    payload: {
+      tabId,
+      requestId,
+      result,
+    },
+  });
+
+  return result;
 }
 
 interface ChatStreamRequestArgs {
@@ -389,6 +441,29 @@ async function emitChatStreamMessage(
   await Promise.allSettled(deliveries);
 }
 
-function isChatStreamMessage(message: ExtMessage): boolean {
-  return message.type.startsWith('CHAT_STREAM_');
+async function emitSummaryStreamMessage(
+  tabId: number,
+  message: Extract<
+    ExtMessage,
+    {
+      type:
+        | 'SUMMARY_STREAM_START'
+        | 'SUMMARY_STREAM_DELTA'
+        | 'SUMMARY_STREAM_FINAL'
+        | 'SUMMARY_STREAM_ERROR';
+    }
+  >
+): Promise<void> {
+  const deliveries: Promise<unknown>[] = [];
+
+  if (tabId) {
+    deliveries.push(chrome.tabs.sendMessage(tabId, message).catch(() => undefined));
+  }
+
+  deliveries.push(chrome.runtime.sendMessage(message).catch(() => undefined));
+  await Promise.allSettled(deliveries);
+}
+
+function isInternalStreamMessage(message: ExtMessage): boolean {
+  return message.type.startsWith('CHAT_STREAM_') || message.type.startsWith('SUMMARY_STREAM_');
 }
