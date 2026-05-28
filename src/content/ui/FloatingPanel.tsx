@@ -24,16 +24,51 @@ interface Props {
 
 const CONTENT_TAB_ID = 0;
 const VIEWPORT_MARGIN = 8;
+const PANEL_DEFAULT_WIDTH = 420;
+const PANEL_DEFAULT_HEIGHT = 720;
+const PANEL_DEFAULT_RIGHT = 22;
+const PANEL_DEFAULT_BOTTOM = 92;
+const PANEL_DEFAULT_VERTICAL_SPACE = 116;
+const PANEL_DEFAULT_HORIZONTAL_SPACE = 32;
+const PANEL_MINIMIZED_HEIGHT = 52;
 const SUMMARY_DEFAULT_PERCENT = 42;
 const SUMMARY_MIN_HEIGHT = 120;
 const CHAT_MIN_HEIGHT = 120;
+
+type PanelSize = { width: number; height: number };
+type PanelLayout = PanelSize & { left: number; top: number };
+type PanelResizeDirection = 'n' | 'e' | 's' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+
+interface PanelResizeState {
+  direction: PanelResizeDirection;
+  startX: number;
+  startY: number;
+  startLeft: number;
+  startTop: number;
+  startWidth: number;
+  startHeight: number;
+}
+
+const PANEL_RESIZE_DIRECTIONS: PanelResizeDirection[] = [
+  'n',
+  'e',
+  's',
+  'w',
+  'ne',
+  'nw',
+  'se',
+  'sw',
+];
 
 export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }: Props) {
   const shellRef = useRef<HTMLDivElement | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ offsetX: number; offsetY: number } | null>(null);
+  const panelResizeRef = useRef<PanelResizeState | null>(null);
   const [panelPosition, setPanelPosition] = useState<{ left: number; top: number } | null>(null);
+  const [panelSize, setPanelSize] = useState<PanelSize | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizingPanel, setIsResizingPanel] = useState(false);
   const [isResizingSections, setIsResizingSections] = useState(false);
   const [summaryHeightPercent, setSummaryHeightPercent] = useState(SUMMARY_DEFAULT_PERCENT);
   const [panelOpacity, setPanelOpacity] = useState(1);
@@ -63,7 +98,14 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
   const shellStyle: CSSProperties = {
     ...styles.shell,
     opacity: panelOpacity,
+    ...(panelSize
+      ? {
+          width: panelSize.width,
+          ...(!isMinimized ? { height: panelSize.height } : {}),
+        }
+      : {}),
     ...(isMinimized ? styles.minimizedShell : {}),
+    ...(isResizingPanel ? styles.panelResizingShell : {}),
     ...(panelPosition
       ? {
           left: panelPosition.left,
@@ -109,6 +151,51 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
   const handleHeaderPointerUp = useCallback((event: PointerEvent<HTMLElement>) => {
     dragRef.current = null;
     setIsDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const handlePanelResizePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>, direction: PanelResizeDirection) => {
+      if (event.button !== 0 || !shellRef.current) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = shellRef.current.getBoundingClientRect();
+      panelResizeRef.current = {
+        direction,
+        startX: event.clientX,
+        startY: event.clientY,
+        startLeft: rect.left,
+        startTop: rect.top,
+        startWidth: rect.width,
+        startHeight: rect.height,
+      };
+      setPanelPosition({ left: rect.left, top: rect.top });
+      setPanelSize({ width: rect.width, height: rect.height });
+      setIsResizingPanel(true);
+      event.currentTarget.setPointerCapture(event.pointerId);
+    },
+    []
+  );
+
+  const handlePanelResizePointerMove = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    const resizeState = panelResizeRef.current;
+    if (!resizeState) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const nextLayout = getResizedPanelLayout(resizeState, event.clientX, event.clientY);
+    setPanelPosition({ left: nextLayout.left, top: nextLayout.top });
+    setPanelSize({ width: nextLayout.width, height: nextLayout.height });
+  }, []);
+
+  const handlePanelResizePointerUp = useCallback((event: PointerEvent<HTMLDivElement>) => {
+    panelResizeRef.current = null;
+    setIsResizingPanel(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -185,6 +272,32 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
       setSummaryHeightPercent(SUMMARY_DEFAULT_PERCENT);
     }
   }, [hasConversation]);
+
+  useEffect(() => {
+    const handleViewportResize = () => {
+      setPanelSize((currentSize) =>
+        currentSize ? clampPanelSizeToViewport(currentSize) : currentSize
+      );
+      setPanelPosition((currentPosition) => {
+        if (!currentPosition || !shellRef.current) return currentPosition;
+
+        const rect = shellRef.current.getBoundingClientRect();
+        const maxLeft = Math.max(VIEWPORT_MARGIN, window.innerWidth - rect.width - VIEWPORT_MARGIN);
+        const maxTop = Math.max(
+          VIEWPORT_MARGIN,
+          window.innerHeight - rect.height - VIEWPORT_MARGIN
+        );
+
+        return {
+          left: clamp(currentPosition.left, VIEWPORT_MARGIN, maxLeft),
+          top: clamp(currentPosition.top, VIEWPORT_MARGIN, maxTop),
+        };
+      });
+    };
+
+    window.addEventListener('resize', handleViewportResize);
+    return () => window.removeEventListener('resize', handleViewportResize);
+  }, []);
 
   useEffect(() => {
     if (!summary && !summaryLoading && !summaryError) {
@@ -450,20 +563,139 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
           )}
 
           <ChatInput onSend={sendUserMessage} disabled={chatLoading} />
+
+          {PANEL_RESIZE_DIRECTIONS.map((direction) => (
+            <div
+              key={direction}
+              style={{
+                ...styles.panelResizeHandle,
+                ...getPanelResizeHandleStyle(direction),
+              }}
+              role="separator"
+              aria-label="Resize chat panel"
+              onPointerDown={(event) => handlePanelResizePointerDown(event, direction)}
+              onPointerMove={handlePanelResizePointerMove}
+              onPointerUp={handlePanelResizePointerUp}
+              onPointerCancel={handlePanelResizePointerUp}
+            />
+          ))}
+          <span style={styles.panelResizeGrip} aria-hidden="true">
+            <span style={styles.panelResizeGripOuter} />
+            <span style={styles.panelResizeGripInner} />
+          </span>
         </>
       )}
     </div>
   );
 }
 
+function getDefaultPanelSize(): PanelSize {
+  const responsiveWidth = Math.max(0, window.innerWidth - PANEL_DEFAULT_HORIZONTAL_SPACE);
+  const responsiveHeight = Math.max(PANEL_MINIMIZED_HEIGHT, window.innerHeight - PANEL_DEFAULT_VERTICAL_SPACE);
+
+  return {
+    width: Math.min(PANEL_DEFAULT_WIDTH, responsiveWidth),
+    height: Math.min(PANEL_DEFAULT_HEIGHT, responsiveHeight),
+  };
+}
+
+function getMaxPanelSize(): PanelSize {
+  return {
+    width: Math.max(0, window.innerWidth - VIEWPORT_MARGIN * 2),
+    height: Math.max(PANEL_MINIMIZED_HEIGHT, window.innerHeight - VIEWPORT_MARGIN * 2),
+  };
+}
+
+function clampPanelSizeToViewport(size: PanelSize): PanelSize {
+  const minSize = getDefaultPanelSize();
+  const maxSize = getMaxPanelSize();
+  const minWidth = Math.min(minSize.width, maxSize.width);
+  const minHeight = Math.min(minSize.height, maxSize.height);
+
+  return {
+    width: clamp(size.width, minWidth, Math.max(minWidth, maxSize.width)),
+    height: clamp(size.height, minHeight, Math.max(minHeight, maxSize.height)),
+  };
+}
+
+function getResizedPanelLayout(
+  state: PanelResizeState,
+  clientX: number,
+  clientY: number
+): PanelLayout {
+  const deltaX = clientX - state.startX;
+  const deltaY = clientY - state.startY;
+  const direction = state.direction;
+  const maxSize = getMaxPanelSize();
+  const minSize = getDefaultPanelSize();
+  const minWidth = Math.min(minSize.width, maxSize.width);
+  const minHeight = Math.min(minSize.height, maxSize.height);
+  const maxWidth = Math.max(minWidth, maxSize.width);
+  const maxHeight = Math.max(minHeight, maxSize.height);
+
+  let width = state.startWidth;
+  let height = state.startHeight;
+
+  if (direction.includes('e')) {
+    width = state.startWidth + deltaX;
+  } else if (direction.includes('w')) {
+    width = state.startWidth - deltaX;
+  }
+
+  if (direction.includes('s')) {
+    height = state.startHeight + deltaY;
+  } else if (direction.includes('n')) {
+    height = state.startHeight - deltaY;
+  }
+
+  width = clamp(width, minWidth, maxWidth);
+  height = clamp(height, minHeight, maxHeight);
+
+  let left = direction.includes('w') ? state.startLeft + state.startWidth - width : state.startLeft;
+  let top = direction.includes('n') ? state.startTop + state.startHeight - height : state.startTop;
+
+  left = clamp(left, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN));
+  top = clamp(top, VIEWPORT_MARGIN, Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN));
+
+  return { left, top, width, height };
+}
+
+function getPanelResizeHandleStyle(direction: PanelResizeDirection): CSSProperties {
+  switch (direction) {
+    case 'n':
+      return { top: 0, left: 14, right: 14, height: 8, cursor: 'ns-resize' };
+    case 'e':
+      return { top: 14, right: 0, bottom: 14, width: 8, cursor: 'ew-resize' };
+    case 's':
+      return { right: 14, bottom: 0, left: 14, height: 8, cursor: 'ns-resize' };
+    case 'w':
+      return { top: 14, bottom: 14, left: 0, width: 8, cursor: 'ew-resize' };
+    case 'ne':
+      return { top: 0, right: 0, width: 14, height: 14, cursor: 'nesw-resize' };
+    case 'nw':
+      return { top: 0, left: 0, width: 14, height: 14, cursor: 'nwse-resize' };
+    case 'se':
+      return { right: 0, bottom: 0, width: 14, height: 14, cursor: 'nwse-resize' };
+    case 'sw':
+      return { bottom: 0, left: 0, width: 14, height: 14, cursor: 'nesw-resize' };
+    default:
+      return {};
+  }
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 const styles: Record<string, CSSProperties> = {
   shell: {
     position: 'fixed',
-    right: 22,
-    bottom: 92,
-    width: 420,
-    height: 'min(720px, calc(100vh - 116px))',
-    maxWidth: 'calc(100vw - 32px)',
+    right: PANEL_DEFAULT_RIGHT,
+    bottom: PANEL_DEFAULT_BOTTOM,
+    width: PANEL_DEFAULT_WIDTH,
+    height: `min(${PANEL_DEFAULT_HEIGHT}px, calc(100vh - ${PANEL_DEFAULT_VERTICAL_SPACE}px))`,
+    maxWidth: `calc(100vw - ${VIEWPORT_MARGIN * 2}px)`,
+    maxHeight: `calc(100vh - ${VIEWPORT_MARGIN * 2}px)`,
     display: 'flex',
     flexDirection: 'column',
     background: '#fff',
@@ -476,7 +708,10 @@ const styles: Record<string, CSSProperties> = {
     zIndex: 2147483647,
   },
   minimizedShell: {
-    height: 52,
+    height: PANEL_MINIMIZED_HEIGHT,
+  },
+  panelResizingShell: {
+    userSelect: 'none',
   },
   header: {
     height: 52,
@@ -663,6 +898,7 @@ const styles: Record<string, CSSProperties> = {
   chatArea: {
     flex: 1,
     minHeight: 0,
+    width: '100%',
     display: 'flex',
     flexDirection: 'column',
   },
@@ -727,5 +963,39 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 12,
     padding: 0,
     flexShrink: 0,
+  },
+  panelResizeHandle: {
+    position: 'absolute',
+    zIndex: 5,
+    touchAction: 'none',
+    background: 'transparent',
+  },
+  panelResizeGrip: {
+    position: 'absolute',
+    right: 5,
+    bottom: 5,
+    width: 12,
+    height: 12,
+    zIndex: 4,
+    pointerEvents: 'none',
+  },
+  panelResizeGripOuter: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 11,
+    height: 11,
+    borderRight: '2px solid rgba(99, 102, 241, 0.36)',
+    borderBottom: '2px solid rgba(99, 102, 241, 0.36)',
+    borderBottomRightRadius: 2,
+  },
+  panelResizeGripInner: {
+    position: 'absolute',
+    right: 4,
+    bottom: 4,
+    width: 5,
+    height: 5,
+    borderRight: '2px solid rgba(99, 102, 241, 0.28)',
+    borderBottom: '2px solid rgba(99, 102, 241, 0.28)',
   },
 };

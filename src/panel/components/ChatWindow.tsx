@@ -10,6 +10,7 @@ interface Props {
 
 export function ChatWindow({ history, isLoading, onRetry }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const assistantContentLengthsRef = useRef<Map<string, number>>(new Map());
   const hasPendingAssistant = history.some(
     (turn) => turn.role === 'assistant' && turn.status === 'sending'
   );
@@ -17,6 +18,18 @@ export function ChatWindow({ history, isLoading, onRetry }: Props) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [history, isLoading]);
+
+  useEffect(() => {
+    const nextLengths = new Map<string, number>();
+
+    for (const turn of history) {
+      if (turn.role === 'assistant') {
+        nextLengths.set(turn.id, turn.content.length);
+      }
+    }
+
+    assistantContentLengthsRef.current = nextLengths;
+  }, [history]);
 
   if (history.length === 0 && !isLoading) {
     return (
@@ -55,16 +68,69 @@ export function ChatWindow({ history, isLoading, onRetry }: Props) {
               background-position: -120% 0;
             }
           }
+
+          @keyframes chatMessageFadeIn {
+            from {
+              opacity: 0;
+              transform: translateY(8px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          @keyframes chatWordFadeIn {
+            from {
+              opacity: 0;
+              filter: blur(2px);
+            }
+            to {
+              opacity: 1;
+              filter: blur(0);
+            }
+          }
+
+          .terms-ai-message-enter {
+            opacity: 0;
+            transform: translateY(8px);
+            animation: chatMessageFadeIn 200ms ease-out forwards;
+          }
+
+          .terms-ai-fade-word {
+            opacity: 0;
+            filter: blur(2px);
+            animation: chatWordFadeIn 160ms ease-out forwards;
+          }
+
+          @media (prefers-reduced-motion: reduce) {
+            .terms-ai-message-enter,
+            .terms-ai-fade-word {
+              animation: none;
+              opacity: 1;
+              transform: none;
+              filter: none;
+            }
+          }
         `}
       </style>
 
       {history.map((turn) => {
         const isPendingAssistant =
           turn.role === 'assistant' && turn.status === 'sending' && !turn.content.trim();
+        const previousAssistantContentLength =
+          turn.role === 'assistant' ? assistantContentLengthsRef.current.get(turn.id) : undefined;
+        const animateFrom = previousAssistantContentLength ?? 0;
+        const shouldAnimateAssistantContent =
+          turn.role === 'assistant' &&
+          !isPendingAssistant &&
+          turn.content.length > animateFrom &&
+          (turn.status === 'sending' || previousAssistantContentLength !== undefined);
 
         return (
           <div
             key={turn.id}
+            className={!isPendingAssistant ? 'terms-ai-message-enter' : undefined}
             style={{
               ...styles.bubble,
               ...(turn.role === 'user' ? styles.userBubble : styles.assistantBubble),
@@ -74,7 +140,9 @@ export function ChatWindow({ history, isLoading, onRetry }: Props) {
             {isPendingAssistant ? (
               <AssistantSkeleton />
             ) : turn.role === 'assistant' ? (
-              <MarkdownContent>{turn.content}</MarkdownContent>
+              <MarkdownContent animate={shouldAnimateAssistantContent} animateFrom={animateFrom}>
+                {turn.content}
+              </MarkdownContent>
             ) : (
               <p style={styles.bubbleText}>{turn.content}</p>
             )}
@@ -170,6 +238,7 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: '85%',
     padding: '8px 12px',
     borderRadius: 12,
+    boxSizing: 'border-box',
     wordBreak: 'break-word',
   },
   userBubble: {
