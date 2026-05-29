@@ -13,6 +13,7 @@ import { useSummarize } from '../../panel/hooks/useSummarize';
 import { SummaryCard, SummarySkeleton } from '../../panel/components/SummaryCard';
 import { ChatWindow } from '../../panel/components/ChatWindow';
 import { ChatInput } from '../../panel/components/ChatInput';
+import { SuggestedQuestionsPanel } from '../../panel/components/SuggestedQuestionsPanel';
 import { sendMessage } from '@shared/messages';
 
 interface Props {
@@ -98,6 +99,8 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
 
     return latestAssistantQuestions ?? summary?.suggested_questions ?? [];
   }, [history, summary?.suggested_questions]);
+  const showSuggestedQuestionSkeleton =
+    summaryLoading && suggestedQuestions.length === 0 && !summaryError;
   const hasConversation = history.length > 0;
 
   const shellStyle: CSSProperties = {
@@ -342,17 +345,6 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
     <div ref={shellRef} style={shellStyle}>
       <style>
         {`
-          @keyframes suggestedQuestionFadeIn {
-            from {
-              opacity: 0;
-              transform: translateY(6px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-
           @keyframes conversationAreaEnter {
             from {
               opacity: 0;
@@ -541,35 +533,12 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
             )}
           </div>
 
-          {suggestedQuestions.length > 0 && (
-            <div style={styles.suggestedPanel}>
-              <span style={styles.suggestedLabel}>추천 질문</span>
-              <div style={styles.suggestedList}>
-                {suggestedQuestions.map((question, index) => (
-                  <div
-                    key={question}
-                    style={{
-                      ...styles.suggestedItem,
-                      animationDelay: `${index * 90}ms`,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      style={{
-                        ...styles.suggestedButton,
-                        opacity: chatLoading ? 0.55 : 1,
-                        cursor: chatLoading ? 'not-allowed' : 'pointer',
-                      }}
-                      onClick={() => handleSuggestedQuestion(question)}
-                      disabled={chatLoading}
-                    >
-                      {question}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <SuggestedQuestionsPanel
+            questions={suggestedQuestions}
+            isLoading={showSuggestedQuestionSkeleton}
+            disabled={chatLoading}
+            onSelect={handleSuggestedQuestion}
+          />
 
           <ChatInput onSend={sendUserMessage} disabled={chatLoading} />
 
@@ -910,41 +879,6 @@ const styles: Record<string, CSSProperties> = {
     width: '100%',
     display: 'flex',
     flexDirection: 'column',
-  },
-  suggestedPanel: {
-    flexShrink: 0,
-    borderTop: '1px solid #eef2ff',
-    background: '#fff',
-    padding: '8px 12px 6px',
-  },
-  suggestedLabel: {
-    display: 'block',
-    fontSize: 11,
-    fontWeight: 700,
-    color: '#6b7280',
-    marginBottom: 7,
-  },
-  suggestedList: {
-    display: 'grid',
-    gridTemplateColumns: '1fr',
-    gap: 6,
-  },
-  suggestedItem: {
-    opacity: 0,
-    animation: 'suggestedQuestionFadeIn 240ms ease-out both',
-  },
-  suggestedButton: {
-    width: '100%',
-    border: '1px solid #dbeafe',
-    borderRadius: 8,
-    background: '#f8fbff',
-    color: '#2563eb',
-    cursor: 'pointer',
-    fontSize: 12,
-    lineHeight: 1.4,
-    padding: '7px 9px',
-    textAlign: 'left',
-    fontFamily: 'inherit',
   },
   inlineError: {
     fontSize: 12,

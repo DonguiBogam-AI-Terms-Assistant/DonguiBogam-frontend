@@ -5,6 +5,7 @@ import { useSummarize } from './hooks/useSummarize';
 import { SummaryCard, SummarySkeleton } from './components/SummaryCard';
 import { ChatWindow } from './components/ChatWindow';
 import { ChatInput } from './components/ChatInput';
+import { SuggestedQuestionsPanel } from './components/SuggestedQuestionsPanel';
 import { sendMessage } from '@shared/messages';
 
 export function App() {
@@ -32,6 +33,8 @@ export function App() {
 
     return latestAssistantQuestions ?? summary?.suggested_questions ?? [];
   }, [history, summary?.suggested_questions]);
+  const showSuggestedQuestionSkeleton =
+    summaryLoading && suggestedQuestions.length === 0 && !summaryError;
   const notifyPanelClosed = useCallback(() => {
     if (!tabId) return;
 
@@ -93,20 +96,6 @@ export function App() {
 
   return (
     <div style={styles.root}>
-      <style>
-        {`
-          @keyframes suggestedQuestionFadeIn {
-            from {
-              opacity: 0;
-              transform: translateY(6px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-        `}
-      </style>
       <div style={styles.header}>
         <span style={styles.headerIcon}>AI</span>
         <span style={styles.headerTitle}>동의보감 : 약관 요약 AI</span>
@@ -151,35 +140,13 @@ export function App() {
         </section>
       </div>
 
-      {suggestedQuestions.length > 0 && (
-        <div style={styles.suggestedPanel}>
-          <span style={styles.suggestedLabel}>추천 질문</span>
-          <div style={styles.suggestedList}>
-            {suggestedQuestions.map((question, index) => (
-              <div
-                key={question}
-                style={{
-                  ...styles.suggestedItem,
-                  animationDelay: `${index * 90}ms`,
-                }}
-              >
-                <button
-                  type="button"
-                  style={{
-                    ...styles.suggestedButton,
-                    opacity: chatLoading ? 0.55 : 1,
-                    cursor: chatLoading ? 'not-allowed' : 'pointer',
-                  }}
-                  onClick={() => sendUserMessage(question)}
-                  disabled={chatLoading}
-                >
-                  {question}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <SuggestedQuestionsPanel
+        questions={suggestedQuestions}
+        isLoading={showSuggestedQuestionSkeleton}
+        disabled={chatLoading}
+        panelStyle={{ padding: '8px 14px 6px' }}
+        onSelect={(question) => void sendUserMessage(question)}
+      />
 
       <ChatInput onSend={sendUserMessage} disabled={chatLoading} />
     </div>
@@ -233,41 +200,6 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: 0,
     display: 'flex',
     flexDirection: 'column',
-  },
-  suggestedPanel: {
-    flexShrink: 0,
-    borderTop: '1px solid #eef2ff',
-    background: '#ffffff',
-    padding: '8px 14px 6px',
-  },
-  suggestedLabel: {
-    display: 'block',
-    fontSize: 11,
-    fontWeight: 700,
-    color: '#6b7280',
-    marginBottom: 7,
-  },
-  suggestedList: {
-    display: 'grid',
-    gridTemplateColumns: '1fr',
-    gap: 6,
-  },
-  suggestedItem: {
-    opacity: 0,
-    animation: 'suggestedQuestionFadeIn 240ms ease-out both',
-  },
-  suggestedButton: {
-    width: '100%',
-    border: '1px solid #dbeafe',
-    borderRadius: 8,
-    background: '#f8fbff',
-    color: '#2563eb',
-    cursor: 'pointer',
-    fontSize: 12,
-    lineHeight: 1.4,
-    padding: '7px 9px',
-    textAlign: 'left',
-    fontFamily: 'inherit',
   },
   divider: {
     height: 1,
