@@ -1,4 +1,5 @@
 import type { SummarizeResponse } from '@shared/types';
+import { LoadingStatusText } from './LoadingStatusText';
 import { MarkdownContent } from './MarkdownContent';
 
 interface Props {
@@ -26,7 +27,12 @@ export function SummaryCard({ summary, animateFrom = null }: Props) {
 
 export function SummarySkeleton() {
   return (
-    <div style={styles.card}>
+    <div
+      style={styles.card}
+      role="status"
+      aria-live="polite"
+      aria-label={'\uBB38\uC11C\uB97C \uC77D\uACE0 \uC788\uC5B4\uC694'}
+    >
       <style>
         {`
           @keyframes summarySkeletonPulse {
@@ -39,7 +45,10 @@ export function SummarySkeleton() {
       <div style={styles.header}>
         <span style={styles.title}>{'AI \uC694\uC57D'}</span>
       </div>
-      <div style={styles.skeletonTitle} />
+      <LoadingStatusText
+        text={'\uBB38\uC11C\uB97C \uC77D\uACE0 \uC788\uC5B4\uC694'}
+        style={styles.loadingStatus}
+      />
       <div style={styles.skeletonLine} />
       <div style={{ ...styles.skeletonLine, width: '92%' }} />
       <div style={{ ...styles.skeletonLine, width: '78%' }} />
@@ -79,10 +88,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 15,
     color: '#4f46e5',
   },
-  skeletonTitle: {
-    ...skeletonBase,
-    width: '46%',
-    height: 14,
+  loadingStatus: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    fontSize: 13,
+    fontWeight: 800,
+    lineHeight: 1.4,
     margin: '12px 0 14px',
   },
   skeletonLine: {

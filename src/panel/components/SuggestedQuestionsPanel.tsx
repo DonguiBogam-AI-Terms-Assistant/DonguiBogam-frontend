@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import { LoadingStatusText } from './LoadingStatusText';
 
 interface Props {
   questions: string[];
@@ -48,13 +49,20 @@ export function SuggestedQuestionsPanel({
         <div style={styles.list} role="status" aria-live="polite" aria-label="추천 질문 생성 중">
           {SKELETON_WIDTHS.map((width, index) => (
             <div key={width} style={styles.skeletonButton}>
-              <span
-                style={{
-                  ...styles.skeletonLine,
-                  width,
-                  animationDelay: `${index * 110}ms`,
-                }}
-              />
+              {index === 0 ? (
+                <LoadingStatusText
+                  text={'\uCD94\uCC9C \uC9C8\uBB38\uC744 \uC900\uBE44\uD558\uACE0 \uC788\uC5B4\uC694'}
+                  style={styles.skeletonStatus}
+                />
+              ) : (
+                <span
+                  style={{
+                    ...styles.skeletonLine,
+                    width,
+                    animationDelay: `${index * 110}ms`,
+                  }}
+                />
+              )}
             </div>
           ))}
         </div>
@@ -147,5 +155,14 @@ const styles: Record<string, CSSProperties> = {
     display: 'block',
     height: 11,
     borderRadius: 999,
+  },
+  skeletonStatus: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    minWidth: 0,
+    fontSize: 11,
+    fontWeight: 700,
+    lineHeight: 1.4,
+    whiteSpace: 'nowrap',
   },
 };

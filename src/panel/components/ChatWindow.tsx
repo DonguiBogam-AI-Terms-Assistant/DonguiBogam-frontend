@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { ChatTurn } from '@shared/types';
+import { LoadingStatusText } from './LoadingStatusText';
 import { MarkdownContent } from './MarkdownContent';
 
 interface Props {
@@ -49,17 +50,6 @@ export function ChatWindow({ history, isLoading, onRetry }: Props) {
     <div style={styles.container}>
       <style>
         {`
-          @keyframes typingWave {
-            0%, 60%, 100% {
-              transform: translateY(0);
-              opacity: 0.45;
-            }
-            30% {
-              transform: translateY(-5px);
-              opacity: 1;
-            }
-          }
-
           @keyframes chatSkeletonShimmer {
             0% {
               background-position: 120% 0;
@@ -164,12 +154,8 @@ export function ChatWindow({ history, isLoading, onRetry }: Props) {
       })}
 
       {isLoading && !hasPendingAssistant && (
-        <div style={{ ...styles.bubble, ...styles.assistantBubble }}>
-          <span style={styles.typing}>
-            <span style={{ ...styles.typingDot, animationDelay: '0s' }}>{'\u25CF'}</span>
-            <span style={{ ...styles.typingDot, animationDelay: '0.12s' }}>{'\u25CF'}</span>
-            <span style={{ ...styles.typingDot, animationDelay: '0.24s' }}>{'\u25CF'}</span>
-          </span>
+        <div style={{ ...styles.bubble, ...styles.assistantBubble, ...styles.skeletonBubble }}>
+          <AssistantSkeleton />
         </div>
       )}
 
@@ -180,7 +166,16 @@ export function ChatWindow({ history, isLoading, onRetry }: Props) {
 
 function AssistantSkeleton() {
   return (
-    <div style={styles.skeletonStack} role="status" aria-label="AI 답변 생성 중">
+    <div
+      style={styles.skeletonStack}
+      role="status"
+      aria-live="polite"
+      aria-label={'\uAD00\uB828 \uB0B4\uC6A9\uC744 \uD655\uC778\uD558\uACE0 \uC788\uC5B4\uC694'}
+    >
+      <LoadingStatusText
+        text={'\uAD00\uB828 \uB0B4\uC6A9\uC744 \uD655\uC778\uD558\uACE0 \uC788\uC5B4\uC694'}
+        style={styles.skeletonStatus}
+      />
       <span style={{ ...styles.skeletonLine, width: '78%' }} />
       <span style={{ ...styles.skeletonLine, width: '94%' }} />
       <span style={{ ...styles.skeletonLine, width: '56%' }} />
@@ -267,6 +262,15 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     padding: '1px 0',
   },
+  skeletonStatus: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    fontSize: 12,
+    fontWeight: 800,
+    lineHeight: 1.4,
+    marginBottom: 2,
+  },
   skeletonLine: {
     display: 'block',
     height: 10,
@@ -299,16 +303,5 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#fff',
     fontSize: 11,
     cursor: 'pointer',
-  },
-  typing: {
-    display: 'flex',
-    gap: 4,
-    fontSize: 8,
-    color: '#9ca3af',
-    padding: '4px 0',
-  },
-  typingDot: {
-    display: 'inline-block',
-    animation: 'typingWave 0.9s ease-in-out infinite',
   },
 };
