@@ -1,7 +1,7 @@
 /**
  * API 클라이언트
  * useMock 설정에 따라 mock/real API를 투명하게 전환
- * Backend: http://localhost:8000 (개발) 또는 설정된 BASE_URL
+ * Backend: 배포 API 또는 설정된 BASE_URL
  */
 
 import type {
@@ -18,7 +18,7 @@ import {
 } from './mockApi';
 import { getOrCreateClientInstallId, getSettings } from '../storageManager';
 
-const DEFAULT_API_BASE_URL = 'http://localhost:8000';
+const DEFAULT_API_BASE_URL = 'https://api.donguibogam-api.online';
 
 interface ApiError extends Error {
   code?: string;
