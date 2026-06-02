@@ -1,6 +1,10 @@
 // ─── 도메인 타입 ───────────────────────────────────────────────
 
 /** 감지된 약관 문서 */
+export type DocumentKind = 'CORE' | 'POLICY_NOTICE' | 'UNKNOWN';
+export type DetectionConfidence = 'high' | 'medium' | 'low';
+export type DetectionPresentation = 'modal' | 'floating' | 'silent';
+
 export interface TermsDocument {
   fingerprint: string;
   plainText: string;
@@ -8,6 +12,9 @@ export interface TermsDocument {
   sourceUrl: string;
   score: number;
   reasons?: string[];
+  kind?: DocumentKind;
+  confidence?: DetectionConfidence;
+  presentation?: DetectionPresentation;
   detectedAt: number;
 }
 

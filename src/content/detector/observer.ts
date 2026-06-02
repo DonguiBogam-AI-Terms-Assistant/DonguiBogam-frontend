@@ -1,12 +1,15 @@
 import {
   detectTermsLikeDocument,
   extractRawText,
+  shouldStartDetection,
 } from './detector';
 import { extractTitle } from '../extractor/textExtractor';
 import { generateFingerprint } from '@shared/utils';
 import type { TermsDocument } from '@shared/types';
 
-const DEBOUNCE_MS = 800;
+const SCAN_DEBOUNCE_MS = 1500;
+const MAX_SCAN_COUNT = 5;
+const MAX_OBSERVER_LIFETIME_MS = 15000;
 const MIN_TEXT_LENGTH = 100;
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -42,6 +45,9 @@ function scanCandidates(onDetected: OnDetectedCallback): boolean {
     sourceUrl: getSourceUrl(result.targetElement),
     score: result.score,
     reasons: result.reasons,
+    kind: result.kind,
+    confidence: result.confidence,
+    presentation: result.presentation,
     detectedAt: Date.now(),
   };
 
@@ -54,26 +60,48 @@ function debouncedScan(scan: () => void): void {
   debounceTimer = setTimeout(() => {
     debounceTimer = null;
     scan();
-  }, DEBOUNCE_MS);
+  }, SCAN_DEBOUNCE_MS);
 }
 
 export function startObserver(onDetected: OnDetectedCallback): void {
-  if (scanCandidates(onDetected)) return;
+  if (!shouldStartDetection()) return;
 
   let observer: MutationObserver | null = null;
+  let lifetimeTimer: ReturnType<typeof setTimeout> | null = null;
+  let scanCount = 0;
+  const startedAt = Date.now();
 
   const stopObserving = (): void => {
     if (debounceTimer !== null) {
       clearTimeout(debounceTimer);
       debounceTimer = null;
     }
+    if (lifetimeTimer !== null) {
+      clearTimeout(lifetimeTimer);
+      lifetimeTimer = null;
+    }
     observer?.disconnect();
     observer = null;
   };
 
+  const canScanAgain = (): boolean =>
+    scanCount < MAX_SCAN_COUNT && Date.now() - startedAt < MAX_OBSERVER_LIFETIME_MS;
+
   const scanAndStopIfDetected = (): void => {
-    if (scanCandidates(onDetected)) stopObserving();
+    if (!canScanAgain()) {
+      stopObserving();
+      return;
+    }
+
+    scanCount += 1;
+
+    if (scanCandidates(onDetected) || !canScanAgain()) {
+      stopObserving();
+    }
   };
+
+  scanAndStopIfDetected();
+  if (!canScanAgain()) return;
 
   observer = new MutationObserver((mutations) => {
     const hasRelevant = mutations.some(
@@ -86,6 +114,8 @@ export function startObserver(onDetected: OnDetectedCallback): void {
     );
     if (hasRelevant) debouncedScan(scanAndStopIfDetected);
   });
+
+  lifetimeTimer = setTimeout(stopObserving, MAX_OBSERVER_LIFETIME_MS);
 
   observer.observe(document.body, {
     childList: true,
