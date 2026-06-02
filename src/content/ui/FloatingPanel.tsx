@@ -74,6 +74,7 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
   const [summaryHeightPercent, setSummaryHeightPercent] = useState(SUMMARY_DEFAULT_PERCENT);
   const [panelOpacity, setPanelOpacity] = useState(1);
   const [tabState, setTabState] = useState<TabState | null>(null);
+  const [isTabStateReady, setIsTabStateReady] = useState(false);
 
   const {
     history,
@@ -102,6 +103,7 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
   const showSuggestedQuestionSkeleton =
     summaryLoading && suggestedQuestions.length === 0 && !summaryError;
   const hasConversation = history.length > 0;
+  const hasBackgroundTerms = tabState?.terms?.fingerprint === terms.fingerprint;
 
   const shellStyle: CSSProperties = {
     ...styles.shell,
@@ -308,29 +310,55 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
   }, []);
 
   useEffect(() => {
-    if (!summary && !summaryLoading && !summaryError) {
+    if (isTabStateReady && hasBackgroundTerms && !summary && !summaryLoading && !summaryError) {
       void requestSummary();
     }
-  }, [requestSummary, summary, summaryError, summaryLoading, terms.fingerprint]);
+  }, [
+    hasBackgroundTerms,
+    isTabStateReady,
+    requestSummary,
+    summary,
+    summaryError,
+    summaryLoading,
+    terms.fingerprint,
+  ]);
 
   useEffect(() => {
     let closed = false;
 
-    void sendMessage({
-      type: 'PANEL_OPENED',
-      payload: { tabId: CONTENT_TAB_ID },
-    }).catch(console.error);
+    async function preparePanelState(): Promise<void> {
+      setIsTabStateReady(false);
+      setTabState(null);
 
-    void sendMessage({
-      type: 'PANEL_READY',
-      payload: { tabId: CONTENT_TAB_ID },
-    })
-      .then((response) => {
-        if (!closed && response?.type === 'TERMS_DATA') {
-          setTabState(response.payload.tabState);
+      try {
+        let nextTabState = await requestPanelTabState();
+
+        if (!hasMatchingTerms(nextTabState, terms)) {
+          await sendMessage({
+            type: 'TERMS_DETECTED',
+            payload: { terms },
+          });
+          nextTabState = await requestPanelTabState();
         }
-      })
-      .catch(console.error);
+
+        if (!closed) {
+          setTabState(nextTabState);
+        }
+
+        await sendMessage({
+          type: 'PANEL_OPENED',
+          payload: { tabId: CONTENT_TAB_ID },
+        });
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!closed) {
+          setIsTabStateReady(true);
+        }
+      }
+    }
+
+    void preparePanelState();
 
     return () => {
       closed = true;
@@ -565,6 +593,19 @@ export function FloatingPanel({ terms, isMinimized, onToggleMinimized, onClose }
       )}
     </div>
   );
+}
+
+async function requestPanelTabState(): Promise<TabState | null> {
+  const response = await sendMessage({
+    type: 'PANEL_READY',
+    payload: { tabId: CONTENT_TAB_ID },
+  });
+
+  return response?.type === 'TERMS_DATA' ? response.payload.tabState : null;
+}
+
+function hasMatchingTerms(tabState: TabState | null, terms: TermsDocument): boolean {
+  return tabState?.terms?.fingerprint === terms.fingerprint;
 }
 
 function getDefaultPanelSize(): PanelSize {
