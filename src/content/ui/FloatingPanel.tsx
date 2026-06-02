@@ -15,6 +15,7 @@ import { ChatWindow } from '../../panel/components/ChatWindow';
 import { ChatInput } from '../../panel/components/ChatInput';
 import { SuggestedQuestionsPanel } from '../../panel/components/SuggestedQuestionsPanel';
 import { sendMessage } from '@shared/messages';
+import { getExtensionIconUrl } from '@shared/utils';
 
 interface Props {
   terms: TermsDocument;
@@ -35,6 +36,7 @@ const PANEL_MINIMIZED_HEIGHT = 52;
 const SUMMARY_DEFAULT_PERCENT = 42;
 const SUMMARY_MIN_HEIGHT = 120;
 const CHAT_MIN_HEIGHT = 120;
+const EXTENSION_ICON_URL = getExtensionIconUrl();
 
 type PanelSize = { width: number; height: number };
 type PanelLayout = PanelSize & { left: number; top: number };
@@ -760,9 +762,9 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: '#eef2ff',
-    color: '#4f46e5',
-    fontSize: 18,
+    background: `url("${EXTENSION_ICON_URL}") center / cover no-repeat`,
+    color: 'transparent',
+    fontSize: 0,
     flexShrink: 0,
   },
   title: {

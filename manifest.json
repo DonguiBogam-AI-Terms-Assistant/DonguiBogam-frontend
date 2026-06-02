@@ -1,8 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "약관 요약 AI",
+  "name": "동의보감 : 약관 요약 AI",
   "version": "1.0.0",
   "description": "웹페이지의 약관/개인정보처리방침을 감지하고 AI로 요약해드립니다.",
+  "icons": {
+    "60": "icons.png"
+  },
   "permissions": ["storage", "sidePanel", "tabs", "activeTab"],
   "host_permissions": ["<all_urls>", "file://*/*"],
   "background": {
@@ -17,6 +20,13 @@
     }
   ],
   "action": {
-    "default_title": "약관 요약 AI"
-  }
+    "default_title": "약관 요약 AI",
+    "default_icon": "icons.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["icons.png"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

@@ -7,6 +7,9 @@ import { ChatWindow } from './components/ChatWindow';
 import { ChatInput } from './components/ChatInput';
 import { SuggestedQuestionsPanel } from './components/SuggestedQuestionsPanel';
 import { sendMessage } from '@shared/messages';
+import { getExtensionIconUrl } from '@shared/utils';
+
+const EXTENSION_ICON_URL = getExtensionIconUrl();
 
 export function App() {
   const { tabState, isLoading: dataLoading, error: dataError, tabId } = useTermsData();
@@ -171,9 +174,13 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
   headerIcon: {
-    fontSize: 12,
-    fontWeight: 800,
-    color: '#4f46e5',
+    width: 28,
+    height: 28,
+    borderRadius: '50%',
+    background: `url("${EXTENSION_ICON_URL}") center / cover no-repeat`,
+    color: 'transparent',
+    fontSize: 0,
+    flexShrink: 0,
   },
   headerTitle: {
     fontWeight: 700,

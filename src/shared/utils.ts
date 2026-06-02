@@ -31,3 +31,11 @@ export function generateRandomId(prefix = 'id'): string {
       : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
   return `${prefix}_${random}`;
 }
+
+export function getExtensionIconUrl(): string {
+  if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
+    return chrome.runtime.getURL('icons.png');
+  }
+
+  return 'icons.png';
+}

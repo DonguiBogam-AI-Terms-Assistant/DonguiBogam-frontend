@@ -1,4 +1,7 @@
+import { getExtensionIconUrl } from '@shared/utils';
+
 const BUTTON_ID = 'terms-ai-floating-host';
+const ICON_URL = getExtensionIconUrl();
 
 let hostEl: HTMLElement | null = null;
 let onClickCallback: (() => void) | null = null;
@@ -11,48 +14,45 @@ const BUTTON_HTML = `
       position: fixed;
       bottom: 24px;
       right: 24px;
-      width: 56px;
-      height: 56px;
+      width: 60px;
+      height: 60px;
       border-radius: 50%;
-      background: #4f46e5;
-      color: #fff;
+      background: transparent;
       border: none;
+      padding: 0;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 8px 24px rgba(79, 70, 229, 0.42);
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.24);
+      overflow: hidden;
       z-index: 2147483647;
       transition: transform 0.15s ease, box-shadow 0.15s ease;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 25px;
-      font-weight: 700;
       line-height: 1;
     }
 
     .fab:hover {
       transform: translateY(-2px);
-      box-shadow: 0 12px 28px rgba(79, 70, 229, 0.52);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.3);
     }
 
     .fab:active {
       transform: translateY(0);
     }
 
-    .badge {
-      position: absolute;
-      top: 6px;
-      right: 6px;
-      width: 10px;
-      height: 10px;
+    .fab-icon {
+      display: block;
+      width: 60px;
+      height: 60px;
       border-radius: 50%;
-      background: #22c55e;
-      border: 2px solid #fff;
+      object-fit: cover;
+      transform: scale(1.08);
     }
 
     .tooltip {
       position: absolute;
-      right: 64px;
+      right: 68px;
       top: 50%;
       transform: translateY(-50%);
       background: #111827;
@@ -73,8 +73,7 @@ const BUTTON_HTML = `
   </style>
 
   <button class="fab" id="fab-btn" title="동의보감">
-    <span aria-hidden="true">📜</span>
-    <span class="badge"></span>
+    <img class="fab-icon" src="${ICON_URL}" alt="" aria-hidden="true" />
     <span class="tooltip">약관 분석 열기</span>
   </button>
 `;
