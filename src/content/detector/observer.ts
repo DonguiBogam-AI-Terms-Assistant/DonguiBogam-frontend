@@ -16,6 +16,14 @@ const detectedFingerprints = new Set<string>();
 
 type OnDetectedCallback = (doc: TermsDocument) => void;
 
+function getSourceUrl(target: Element): string {
+  try {
+    return target.ownerDocument.location?.href ?? location.href;
+  } catch {
+    return location.href;
+  }
+}
+
 function scanCandidates(onDetected: OnDetectedCallback): void {
   const result = detectTermsLikeDocument();
   if (!result.detected || !result.targetElement) return;
@@ -33,10 +41,9 @@ function scanCandidates(onDetected: OnDetectedCallback): void {
     plainText,
     rawHtml: extractRawHtml(result.targetElement),
     title: extractTitle(result.targetElement),
-    sourceUrl: location.href,
+    sourceUrl: getSourceUrl(result.targetElement),
     score: result.score,
     reasons: result.reasons,
-    guessedType: result.guessedType,
     detectedAt: Date.now(),
   };
 

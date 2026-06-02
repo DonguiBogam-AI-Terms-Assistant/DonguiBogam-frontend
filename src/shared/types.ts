@@ -1,13 +1,6 @@
 // ─── 도메인 타입 ───────────────────────────────────────────────
 
 /** 감지된 약관 문서 */
-export type GuessedDocumentType =
-  | 'TERMS'
-  | 'PRIVACY'
-  | 'CONSENT'
-  | 'POLICY_OTHER'
-  | 'UNKNOWN';
-
 export interface TermsDocument {
   fingerprint: string;
   plainText: string;
@@ -16,7 +9,6 @@ export interface TermsDocument {
   sourceUrl: string;
   score: number;
   reasons?: string[];
-  guessedType?: GuessedDocumentType;
   detectedAt: number;
 }
 
