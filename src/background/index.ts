@@ -1,8 +1,9 @@
 import { setupMessageRouter } from './messageRouter';
 import { clearTabState, getTabState } from './storageManager';
 import {
-  clearPanelTab,
   disablePanelForTab,
+  forgetPanelTab,
+  isMissingTabError,
   markPanelClosed,
   markPanelsClosedForWindow,
   registerSidePanelLifecycleEvents,
@@ -64,8 +65,7 @@ async function handleTabRemoved(
   }
 
   await clearTabState(tabId);
-  await clearPanelTab(tabId);
-  chrome.action.setBadgeText({ text: '', tabId }).catch(console.error);
+  forgetPanelTab(tabId);
 }
 
 async function handleTabNavigation(tabId: number): Promise<void> {
@@ -78,5 +78,14 @@ async function handleTabNavigation(tabId: number): Promise<void> {
 
   await clearTabState(tabId);
   await disablePanelForTab(tabId);
-  chrome.action.setBadgeText({ text: '', tabId }).catch(console.error);
+  await clearBadgeForTab(tabId);
+}
+
+async function clearBadgeForTab(tabId: number): Promise<void> {
+  try {
+    await chrome.action.setBadgeText({ text: '', tabId });
+  } catch (err) {
+    if (isMissingTabError(err)) return;
+    throw err;
+  }
 }

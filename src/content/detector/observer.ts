@@ -7,7 +7,7 @@ import { extractTitle } from '../extractor/textExtractor';
 import { generateFingerprint } from '@shared/utils';
 import type { TermsDocument } from '@shared/types';
 
-const DEBOUNCE_MS = 400;
+const DEBOUNCE_MS = 800;
 const MIN_TEXT_LENGTH = 100;
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;

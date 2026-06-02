@@ -17,6 +17,10 @@ const openPanelTabs = new Set<number>();
 const openPanelWindowByTab = new Map<number, number>();
 const recentClosedEvents = new Map<number, number>();
 
+export function isMissingTabError(err: unknown): boolean {
+  return err instanceof Error && /No tab with id/i.test(err.message);
+}
+
 export async function openTabSpecificPanel(tab: chrome.tabs.Tab): Promise<void> {
   if (!tab.id || !tab.windowId) return;
 
@@ -146,15 +150,25 @@ export async function enablePanelForTab(tabId: number): Promise<void> {
 }
 
 export async function disablePanelForTab(tabId: number): Promise<void> {
-  await chrome.sidePanel.setOptions({
-    tabId,
-    enabled: false,
-  });
+  try {
+    await chrome.sidePanel.setOptions({
+      tabId,
+      enabled: false,
+    });
+  } catch (err) {
+    if (isMissingTabError(err)) return;
+    throw err;
+  }
+}
+
+export function forgetPanelTab(tabId: number): void {
+  openPanelTabs.delete(tabId);
+  openPanelWindowByTab.delete(tabId);
+  recentClosedEvents.delete(tabId);
 }
 
 export async function clearPanelTab(tabId: number): Promise<void> {
-  openPanelTabs.delete(tabId);
-  openPanelWindowByTab.delete(tabId);
+  forgetPanelTab(tabId);
   await disablePanelForTab(tabId);
 }
 

@@ -23,10 +23,60 @@ interface CandidateScore {
   reasons: string[];
 }
 
+interface ScanCache {
+  mainText: WeakMap<Element, string>;
+  titleContext: WeakMap<Element, string>;
+  consentControlContext: WeakMap<Element, boolean>;
+  privacyTableHeaderCount: WeakMap<Element, number>;
+  linkTextRatio: WeakMap<Element, number>;
+  negativeContext: WeakMap<Element, boolean>;
+  candidateEvidenceScore: WeakMap<Element, number>;
+}
+
 const CORE_DETECTION_THRESHOLD = 70;
 const POLICY_NOTICE_THRESHOLD = 75;
 const MIN_CANDIDATE_TEXT_LENGTH = 120;
 const MAX_CANDIDATES_PER_DOCUMENT = 260;
+
+let activeScanCache: ScanCache | null = null;
+
+function createScanCache(): ScanCache {
+  return {
+    mainText: new WeakMap(),
+    titleContext: new WeakMap(),
+    consentControlContext: new WeakMap(),
+    privacyTableHeaderCount: new WeakMap(),
+    linkTextRatio: new WeakMap(),
+    negativeContext: new WeakMap(),
+    candidateEvidenceScore: new WeakMap(),
+  };
+}
+
+function withScanCache<T>(fn: () => T): T {
+  const previousCache = activeScanCache;
+  activeScanCache = createScanCache();
+
+  try {
+    return fn();
+  } finally {
+    activeScanCache = previousCache;
+  }
+}
+
+function getCachedValue<T>(
+  cache: WeakMap<Element, T> | undefined,
+  el: Element,
+  compute: () => T
+): T {
+  if (!cache) return compute();
+
+  const cached = cache.get(el);
+  if (cached !== undefined) return cached;
+
+  const value = compute();
+  cache.set(el, value);
+  return value;
+}
 
 const CANDIDATE_SELECTOR = [
   'main',
@@ -275,13 +325,17 @@ function cloneWithoutWeakAreas(el: Element): Element {
   return clone;
 }
 
-function mainText(el: Element): string {
+function computeMainText(el: Element): string {
   try {
     const clone = cloneWithoutWeakAreas(el);
     return normalizeText([textContentOf(clone), imageAltText(clone)].filter(Boolean).join('\n'));
   } catch {
     return visibleText(el);
   }
+}
+
+function mainText(el: Element): string {
+  return getCachedValue(activeScanCache?.mainText, el, () => computeMainText(el));
 }
 
 function countMatches(text: string, pattern: RegExp): number {
@@ -309,7 +363,7 @@ function getDocumentTitle(doc: Document = document): string {
   return normalizeText(doc.title ?? '');
 }
 
-function getTitleContext(el: Element): string {
+function computeTitleContext(el: Element): string {
   try {
     const clone = cloneWithoutWeakAreas(el);
     const titleText = safeQueryAll(clone, TITLE_AREA_SELECTOR)
@@ -329,11 +383,15 @@ function getTitleContext(el: Element): string {
   }
 }
 
+function getTitleContext(el: Element): string {
+  return getCachedValue(activeScanCache?.titleContext, el, () => computeTitleContext(el));
+}
+
 function getTopText(text: string, maxLength = 1200): string {
   return normalizeText(text).slice(0, maxLength);
 }
 
-function getLinkTextRatio(el: Element): number {
+function computeLinkTextRatio(el: Element): number {
   try {
     const totalLength = mainText(el).length;
     if (totalLength === 0) return 0;
@@ -346,6 +404,10 @@ function getLinkTextRatio(el: Element): number {
   } catch {
     return 0;
   }
+}
+
+function getLinkTextRatio(el: Element): number {
+  return getCachedValue(activeScanCache?.linkTextRatio, el, () => computeLinkTextRatio(el));
 }
 
 function getAssociatedLabelText(control: Element): string {
@@ -392,7 +454,7 @@ function getConsentControlContext(control: Element): string {
   return normalizeText(parts.join('\n'));
 }
 
-function hasConsentControlContext(el: Element): boolean {
+function computeConsentControlContext(el: Element): boolean {
   try {
     const controls = safeQueryAll(
       el,
@@ -414,7 +476,13 @@ function hasConsentControlContext(el: Element): boolean {
   }
 }
 
-function getPrivacyTableHeaderCount(el: Element): number {
+function hasConsentControlContext(el: Element): boolean {
+  return getCachedValue(activeScanCache?.consentControlContext, el, () =>
+    computeConsentControlContext(el)
+  );
+}
+
+function computePrivacyTableHeaderCount(el: Element): number {
   try {
     const tableText = safeQueryAll(el, 'table, th, td, caption')
       .map((node) => visibleText(node))
@@ -424,6 +492,12 @@ function getPrivacyTableHeaderCount(el: Element): number {
   } catch {
     return 0;
   }
+}
+
+function getPrivacyTableHeaderCount(el: Element): number {
+  return getCachedValue(activeScanCache?.privacyTableHeaderCount, el, () =>
+    computePrivacyTableHeaderCount(el)
+  );
 }
 
 function countTermsNavigationSignals(el: Element): number {
@@ -497,12 +571,18 @@ function getDocumentUrl(doc: Document): string {
   }
 }
 
-function hasGeneralNegativeContext(el: Element): boolean {
+function computeGeneralNegativeContext(el: Element): boolean {
   const context = normalizeText(`${getTitleContext(el)}\n${getTopText(mainText(el), 600)}`);
   return NEGATIVE_PAGE_PATTERN.test(context);
 }
 
-function getCandidateEvidenceScore(el: Element): number {
+function hasGeneralNegativeContext(el: Element): boolean {
+  return getCachedValue(activeScanCache?.negativeContext, el, () =>
+    computeGeneralNegativeContext(el)
+  );
+}
+
+function computeCandidateEvidenceScore(el: Element): number {
   const text = mainText(el);
   const titleContext = getTitleContext(el);
   const identity = getIdentityText(el);
@@ -537,6 +617,12 @@ function getCandidateEvidenceScore(el: Element): number {
   }
 
   return score;
+}
+
+function getCandidateEvidenceScore(el: Element): number {
+  return getCachedValue(activeScanCache?.candidateEvidenceScore, el, () =>
+    computeCandidateEvidenceScore(el)
+  );
 }
 
 export function getCandidateElements(root: Document = document): Element[] {
@@ -895,46 +981,48 @@ function isBetterCandidate(candidate: CandidateScore, best: DetectionResult): bo
 }
 
 export function detectTermsLikeDocument(): DetectionResult {
-  let best: DetectionResult = {
-    detected: false,
-    score: 0,
-    targetElement: null,
-    reasons: [],
-  };
-
-  try {
-    for (const doc of getAccessibleDocuments()) {
-      for (const el of getCandidateElements(doc)) {
-        const candidate = scoreCandidate(el);
-
-        if (isBetterCandidate(candidate, best)) {
-          best = {
-            detected: candidate.detected,
-            score: candidate.score,
-            targetElement: el,
-            reasons: candidate.reasons,
-          };
-        }
-      }
-    }
-
-    const iframeHintReasons =
-      !best.detected && hasPolicyIframeHint(document)
-        ? [...best.reasons, 'policy_iframe_may_need_all_frames']
-        : best.reasons;
-
-    return {
-      ...best,
-      reasons: iframeHintReasons,
-    };
-  } catch {
-    return {
+  return withScanCache(() => {
+    let best: DetectionResult = {
       detected: false,
       score: 0,
       targetElement: null,
-      reasons: ['detection_error'],
+      reasons: [],
     };
-  }
+
+    try {
+      for (const doc of getAccessibleDocuments()) {
+        for (const el of getCandidateElements(doc)) {
+          const candidate = scoreCandidate(el);
+
+          if (isBetterCandidate(candidate, best)) {
+            best = {
+              detected: candidate.detected,
+              score: candidate.score,
+              targetElement: el,
+              reasons: candidate.reasons,
+            };
+          }
+        }
+      }
+
+      const iframeHintReasons =
+        !best.detected && hasPolicyIframeHint(document)
+          ? [...best.reasons, 'policy_iframe_may_need_all_frames']
+          : best.reasons;
+
+      return {
+        ...best,
+        reasons: iframeHintReasons,
+      };
+    } catch {
+      return {
+        detected: false,
+        score: 0,
+        targetElement: null,
+        reasons: ['detection_error'],
+      };
+    }
+  });
 }
 
 export function extractRawText(el?: Element | null): string {
