@@ -1,6 +1,5 @@
 import {
   detectTermsLikeDocument,
-  extractRawHtml,
   extractRawText,
 } from './detector';
 import { extractTitle } from '../extractor/textExtractor';
@@ -24,22 +23,21 @@ function getSourceUrl(target: Element): string {
   }
 }
 
-function scanCandidates(onDetected: OnDetectedCallback): void {
+function scanCandidates(onDetected: OnDetectedCallback): boolean {
   const result = detectTermsLikeDocument();
-  if (!result.detected || !result.targetElement) return;
+  if (!result.detected || !result.targetElement) return false;
 
   const plainText = extractRawText(result.targetElement);
-  if (plainText.length < MIN_TEXT_LENGTH) return;
+  if (plainText.length < MIN_TEXT_LENGTH) return false;
 
   const fingerprint = generateFingerprint(plainText);
-  if (detectedFingerprints.has(fingerprint)) return;
+  if (detectedFingerprints.has(fingerprint)) return true;
 
   detectedFingerprints.add(fingerprint);
 
   const doc: TermsDocument = {
     fingerprint,
     plainText,
-    rawHtml: extractRawHtml(result.targetElement),
     title: extractTitle(result.targetElement),
     sourceUrl: getSourceUrl(result.targetElement),
     score: result.score,
@@ -48,17 +46,36 @@ function scanCandidates(onDetected: OnDetectedCallback): void {
   };
 
   onDetected(doc);
+  return true;
 }
 
-function debouncedScan(onDetected: OnDetectedCallback): void {
+function debouncedScan(scan: () => void): void {
   if (debounceTimer !== null) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => scanCandidates(onDetected), DEBOUNCE_MS);
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null;
+    scan();
+  }, DEBOUNCE_MS);
 }
 
 export function startObserver(onDetected: OnDetectedCallback): void {
-  scanCandidates(onDetected);
+  if (scanCandidates(onDetected)) return;
 
-  const observer = new MutationObserver((mutations) => {
+  let observer: MutationObserver | null = null;
+
+  const stopObserving = (): void => {
+    if (debounceTimer !== null) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+    observer?.disconnect();
+    observer = null;
+  };
+
+  const scanAndStopIfDetected = (): void => {
+    if (scanCandidates(onDetected)) stopObserving();
+  };
+
+  observer = new MutationObserver((mutations) => {
     const hasRelevant = mutations.some(
       (m) =>
         m.addedNodes.length > 0 ||
@@ -67,7 +84,7 @@ export function startObserver(onDetected: OnDetectedCallback): void {
             m.attributeName ?? ''
           ))
     );
-    if (hasRelevant) debouncedScan(onDetected);
+    if (hasRelevant) debouncedScan(scanAndStopIfDetected);
   });
 
   observer.observe(document.body, {

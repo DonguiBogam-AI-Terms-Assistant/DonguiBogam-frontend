@@ -12,7 +12,6 @@ export interface TermsPayload {
   url: string;
   title: string;
   rawText: string;
-  rawHtml?: string;
   detectedScore: number;
   reasons: string[];
 }
@@ -1029,14 +1028,6 @@ export function extractRawText(el?: Element | null): string {
   return visibleText(el ?? document.body);
 }
 
-export function extractRawHtml(el?: Element | null): string {
-  try {
-    return (el ?? document.body).outerHTML;
-  } catch {
-    return document.body?.outerHTML ?? '';
-  }
-}
-
 function getPayloadUrl(target: Element | null): string {
   try {
     return target?.ownerDocument?.location?.href ?? location.href;
@@ -1060,7 +1051,6 @@ export function buildTermsPayload(result: DetectionResult): TermsPayload {
     url: getPayloadUrl(target),
     title: getPayloadTitle(target),
     rawText: extractRawText(target),
-    rawHtml: extractRawHtml(target),
     detectedScore: result.score,
     reasons: result.reasons,
   };

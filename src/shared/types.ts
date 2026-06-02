@@ -4,7 +4,6 @@
 export interface TermsDocument {
   fingerprint: string;
   plainText: string;
-  rawHtml?: string;
   title: string;
   sourceUrl: string;
   score: number;
