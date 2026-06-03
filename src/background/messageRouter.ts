@@ -20,13 +20,7 @@ import type {
 } from '@shared/types';
 import { clearTabConversation, getTabState, setTabState } from './storageManager';
 import { summarizeStream, chatQueryStream } from './api/client';
-import {
-  disablePanelOnOtherTabs,
-  enablePanelForTab,
-  markPanelClosed,
-  markPanelOpened,
-  togglePanelForTab,
-} from './sidePanelManager';
+import { markPanelClosed, markPanelOpened } from './panelLifecycle';
 
 type SendResponse = (response: ExtMessage) => void;
 
@@ -74,39 +68,6 @@ async function handleMessage(
         // 배지 업데이트
         chrome.action.setBadgeText({ text: '!', tabId });
         chrome.action.setBadgeBackgroundColor({ color: '#4f46e5', tabId });
-        await enablePanelForTab(tabId);
-        if (sender.tab?.windowId) {
-          await disablePanelOnOtherTabs(tabId, sender.tab.windowId);
-        }
-        sendResponse({ type: 'ACK', payload: {} });
-        break;
-      }
-
-      case 'OPEN_PANEL': {
-        // content script에서 온 경우 sender.tab.id 우선 사용
-        const tabId = sender.tab?.id ?? message.payload.tabId;
-        if (!tabId) return;
-        const openPromise = chrome.sidePanel.open({ tabId });
-
-        const state = await getTabState(tabId);
-        if (state) {
-          await setTabState({ ...state, status: 'panel_open' });
-        }
-        await openPromise;
-        const tab = await chrome.tabs.get(tabId);
-        markPanelOpened(tabId, tab.windowId, 'open_message');
-        sendResponse({ type: 'ACK', payload: {} });
-        break;
-      }
-
-      case 'TOGGLE_PANEL': {
-        const tabId = sender.tab?.id ?? message.payload.tabId;
-        if (!tabId) return;
-        const result = await togglePanelForTab(tabId);
-        const state = await getTabState(tabId);
-        if (state) {
-          await setTabState({ ...state, status: result === 'opened' ? 'panel_open' : 'detected' });
-        }
         sendResponse({ type: 'ACK', payload: {} });
         break;
       }
@@ -128,8 +89,7 @@ async function handleMessage(
         if (state) {
           await setTabState({ ...state, status: 'panel_open' });
         }
-        const tab = await chrome.tabs.get(tabId);
-        markPanelOpened(tabId, tab.windowId, 'float_open');
+        markPanelOpened(tabId);
         sendResponse({ type: 'ACK', payload: {} });
         break;
       }

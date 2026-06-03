@@ -2,8 +2,6 @@ import type { ChatTurn, SummarizeResponse, TabState, TermsDocument } from './typ
 
 export type MessageType =
   | 'TERMS_DETECTED'
-  | 'TOGGLE_PANEL'
-  | 'OPEN_PANEL'
   | 'PANEL_OPENED'
   | 'PANEL_CLOSED'
   | 'CLEAR_CONVERSATION'
@@ -27,14 +25,6 @@ export type MessageType =
 
 export interface TermsDetectedPayload {
   terms: TermsDocument;
-}
-
-export interface TogglePanelPayload {
-  tabId: number;
-}
-
-export interface OpenPanelPayload {
-  tabId: number;
 }
 
 export interface PanelReadyPayload {
@@ -151,8 +141,6 @@ export interface ErrorPayload {
 
 export type ExtMessage =
   | { type: 'TERMS_DETECTED'; payload: TermsDetectedPayload }
-  | { type: 'TOGGLE_PANEL'; payload: TogglePanelPayload }
-  | { type: 'OPEN_PANEL'; payload: OpenPanelPayload }
   | { type: 'PANEL_OPENED'; payload: PanelOpenedPayload }
   | { type: 'PANEL_CLOSED'; payload: PanelClosedPayload }
   | { type: 'CLEAR_CONVERSATION'; payload: ClearConversationPayload }
@@ -181,18 +169,6 @@ export function sendMessage<T extends ExtMessage>(message: T): Promise<ExtMessag
 
   try {
     return chrome.runtime.sendMessage(message);
-  } catch (err) {
-    return Promise.reject(err);
-  }
-}
-
-export function sendToTab(tabId: number, message: ExtMessage): Promise<void> {
-  if (!chrome.runtime?.id) {
-    return Promise.resolve();
-  }
-
-  try {
-    return chrome.tabs.sendMessage(tabId, message);
   } catch (err) {
     return Promise.reject(err);
   }

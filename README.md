@@ -19,7 +19,7 @@ background service worker
   - 사이드패널 열기
   - 요약/채팅 API 중계
   ↓
-side panel React app
+floating panel React UI
   - 감지된 약관 미리보기
   - 요약 요청
   - 챗봇 Q&A
@@ -29,7 +29,6 @@ side panel React app
 
 ```
 ├── manifest.json              # MV3 매니페스트
-├── panel.html                 # Side Panel HTML 진입점
 ├── vite.config.ts             # 빌드 설정 (멀티 엔트리)
 ├── src/
 │   ├── background/
@@ -49,10 +48,7 @@ side panel React app
 │   │   └── ui/
 │   │       └── floatingButton.ts # 플로팅 버튼 (Shadow DOM)
 │   ├── panel/
-│   │   ├── index.tsx          # React 진입점
-│   │   ├── App.tsx            # 메인 앱 컴포넌트
 │   │   ├── hooks/
-│   │   │   ├── useTermsData.ts   # 약관 데이터 로드
 │   │   │   ├── useChat.ts        # 채팅 상태 관리
 │   │   │   └── useSummarize.ts   # 요약 요청
 │   │   └── components/

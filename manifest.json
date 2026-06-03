@@ -6,15 +6,15 @@
   "icons": {
     "60": "icons.png"
   },
-  "permissions": ["storage", "sidePanel", "tabs", "activeTab"],
-  "host_permissions": ["<all_urls>", "file://*/*"],
+  "permissions": ["storage"],
+  "host_permissions": ["https://api.donguibogam-api.online/*"],
   "background": {
     "service_worker": "dist/background.js",
     "type": "module"
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>", "file://*/*"],
+      "matches": ["http://*/*", "https://*/*"],
       "js": ["dist/content.js"],
       "run_at": "document_idle"
     }
@@ -26,7 +26,7 @@
   "web_accessible_resources": [
     {
       "resources": ["icons.png"],
-      "matches": ["<all_urls>"]
+      "matches": ["http://*/*", "https://*/*"]
     }
   ]
 }
