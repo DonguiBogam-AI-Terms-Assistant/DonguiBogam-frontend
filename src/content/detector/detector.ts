@@ -59,29 +59,53 @@ const HIGH_CHURN_HOST =
 const LEGAL_URL_HINT =
   /\/(?:policy|terms|privacy|legal|rules|agreement|consent|notice)(?:\/|$|[?#])|service\.html|privacy\.html|disclaimer\.html|search_policy\.html/i;
 
+const ENGLISH_LEGAL_URL_HINT =
+  /\/(?:terms(?:[-_](?:of[-_])?(?:service|use)|[-_]and[-_]conditions)?|service[-_]terms|privacy(?:[-_](?:policy|notice|statement))?|legal(?:[-_](?:terms|notice))?|user[-_]agreement|service[-_]agreement|license|eula|cookie(?:[-_](?:policy|notice))?|data[-_]processing(?:[-_](?:addendum|agreement))?|acceptable[-_]use(?:[-_]policy)?|community[-_]guidelines|rules|policies?)(?:\/|$|[?#])|(?:terms|privacy|legal|policy|notice|agreement|license|eula)\.(?:html?|php|aspx?)(?:$|[?#])/i;
+
 const LEGAL_TITLE_HINT =
   /이용약관|서비스\s*약관|개인정보\s*처리방침|개인정보처리방침|개인정보\s*수집|제\s*3\s*자\s*제공|제3자\s*제공|정보보호\s*인증|책임의\s*한계|법적\s*고지|청소년보호정책|스팸메일정책|검색결과\s*수집에\s*대한\s*정책|운영정책|privacy policy|terms of service|terms and conditions/i;
 
 const CORE_TITLE_PATTERN =
   /이용약관|서비스\s*약관|개인정보\s*처리방침|개인정보처리방침|개인정보\s*수집\s*(?:및|·|ㆍ)?\s*이용\s*동의|개인정보\s*수집|개인정보\s*제\s*3\s*자\s*제공\s*동의|개인정보\s*제3자\s*제공\s*동의|제\s*3\s*자\s*제공\s*동의|제3자\s*제공\s*동의|privacy policy|terms of service|terms and conditions/i;
 
+const ENGLISH_CORE_TITLE_PATTERN =
+  /\b(?:terms\s*(?:of\s*(?:service|use)|(?:and|&)\s*conditions)|service terms|user agreement|subscriber agreement|customer agreement|end user license agreement|eula|acceptable use policy|community guidelines|privacy policy|privacy statement|cookie policy|cookie notice|data processing addendum|personal information notice|consumer privacy notice|notice at collection|privacy notice|data protection notice)\b/i;
+
 const POLICY_NOTICE_TITLE_PATTERN =
   /정보보호\s*인증|SOC\s*인증|APEC\s*CBPR\s*인증|책임의\s*한계와\s*법적\s*고지|책임의한계와\s*법적\s*고지|책임의\s*한계|법적\s*고지|검색결과\s*수집에\s*대한\s*정책|검색결과의\s*수집|청소년보호정책|스팸메일정책|운영정책/i;
+
+const ENGLISH_POLICY_NOTICE_TITLE_PATTERN =
+  /\b(?:legal notice|disclaimer|limitation of liability|responsibility notice|copyright notice|trademark notice|transparency notice|search policy|spam policy|youth protection policy|security certification|privacy certification|certification|cbpr)\b/i;
 
 const TERMS_STRUCTURE_PATTERN =
   /제\s*\d+\s*조|제\s*\d+\s*장|목적|정의|서비스의\s*이용|서비스\s*이용|이용계약|회원\s*가입|회원가입|회사의\s*의무|회원의\s*의무|이용자의\s*의무|게시물|콘텐츠|저작권|서비스\s*이용\s*제한|이용\s*제한|계약\s*해지|계약해지|손해배상|면책|광고|분쟁|준거법|재판관할|시행일|시행일자|약관\s*및\s*운영정책/g;
 
+const ENGLISH_TERMS_STRUCTURE_PATTERN =
+  /\b(?:terms\s*(?:of\s*(?:service|use)|(?:and|&)\s*conditions)|user agreement|service agreement|end user license agreement|acceptable use policy|use of (?:the )?services?|account registration|user accounts?|your responsibilities|user conduct|prohibited (?:conduct|activities)|intellectual property|content ownership|license to use|termination|suspension|disclaimers?|limitation of liability|indemnification|governing law|arbitration|dispute resolution|class action waiver|changes to (?:these )?terms|effective date)\b/gi;
+
 const PRIVACY_STRUCTURE_PATTERN =
   /개인정보의\s*수집|수집하는\s*개인정보|수집\s*및\s*이용|수집·이용|처리\s*목적|처리\s*항목|보유\s*및\s*이용기간|제\s*3\s*자\s*제공|제3자\s*제공|개인정보\s*제\s*3\s*자\s*제공|개인정보\s*제3자\s*제공|처리위탁|수탁사|위탁\s*업무|국외\s*이전|파기|정보주체|이용자\s*권리|동의\s*철회|거부권|쿠키|자동\s*수집|개인정보\s*보호책임자|법정대리인/g;
+
+const ENGLISH_PRIVACY_STRUCTURE_PATTERN =
+  /\b(?:personal (?:data|information)|information we collect|data we collect|collection of (?:personal )?(?:data|information)|how we use (?:your )?(?:data|information)|use of (?:your )?(?:data|information)|legal basis|data retention|retention period|sharing (?:your )?(?:data|information)|third[- ]part(?:y|ies)|service providers?|processors?|international transfers?|cookies?|tracking technologies|your privacy rights|your rights|access (?:or|and) deletion|delete your (?:data|information)|opt[- ]out|withdraw (?:your )?consent|data controller|data processor|data protection officer|contact us)\b/gi;
 
 const CONSENT_CONTEXT_PATTERN =
   /전체\s*동의|필수\s*동의|선택\s*동의|동의합니다|동의하기|개인정보\s*수집\s*및\s*이용|개인정보\s*제\s*3\s*자\s*제공|개인정보\s*제3자\s*제공|제\s*3\s*자\s*제공\s*동의|제3자\s*제공\s*동의|마케팅\s*정보\s*수신/i;
 
+const ENGLISH_CONSENT_CONTEXT_PATTERN =
+  /\b(?:accept(?:ance)? of terms|i agree|agree to (?:the )?terms|by (?:clicking|using|accessing)|you agree|consent to|required consent|optional consent|marketing communications|receive promotional|third[- ]party sharing)\b/i;
+
 const TABLE_HEADER_PATTERN =
   /수집\s*항목|이용\s*목적|보유\s*기간|수탁사|위탁\s*업무|제공받는\s*자|처리\s*항목/i;
 
+const ENGLISH_TABLE_HEADER_PATTERN =
+  /\b(?:categories of (?:personal )?(?:data|information)|purpose of (?:processing|collection)|retention period|recipient(?:s)?|service provider(?:s)?|processor(?:s)?|personal data processed|legal basis|third[- ]party sharing)\b/i;
+
 const POLICY_NOTICE_BODY_PATTERN =
   /검색결과|robots\.txt|데이터\s*베이스|데이터베이스|정보중개자|서비스\s*접근|상표|거래의\s*책임|수집|고지|책임|제한|보호|인증|법률|법령/gi;
+
+const ENGLISH_POLICY_NOTICE_BODY_PATTERN =
+  /\b(?:robots\.txt|database|search results?|crawler|indexing|service access|trademark|copyright|legal notice|disclaimer|liability|limitation|responsibility|certification|security certification|privacy certification|law|regulation|notice)\b/gi;
 
 const FALSE_POSITIVE_PATTERN =
   /FAQ|도움말|고객센터|기술\s*(?:문서|지원|블로그|개요)|이벤트|뉴스|블로그|상품|채용|리뷰|댓글|커뮤니티\s*게시글/gi;
@@ -130,11 +154,45 @@ const TITLE_CONTEXT_SELECTOR = 'h1, h2, h3, .title, .tit, .heading';
 const WEAK_AREA_PATTERN =
   /(^|[-_\s])(gnb|lnb|nav|menu|footer|header|sidebar|side|language|lang|breadcrumb|quick|toolbar|search|faq)([-_\s]|$)/i;
 
+function testPattern(pattern: RegExp, text: string): boolean {
+  try {
+    pattern.lastIndex = 0;
+    const matched = pattern.test(text);
+    pattern.lastIndex = 0;
+    return matched;
+  } catch {
+    return false;
+  }
+}
+
+function hasLegalUrlSignal(url: string): boolean {
+  return testPattern(LEGAL_URL_HINT, url) || testPattern(ENGLISH_LEGAL_URL_HINT, url);
+}
+
+function hasCoreTitleSignal(text: string): boolean {
+  return testPattern(CORE_TITLE_PATTERN, text) || testPattern(ENGLISH_CORE_TITLE_PATTERN, text);
+}
+
+function hasPolicyNoticeTitleSignal(text: string): boolean {
+  return (
+    testPattern(POLICY_NOTICE_TITLE_PATTERN, text) ||
+    testPattern(ENGLISH_POLICY_NOTICE_TITLE_PATTERN, text)
+  );
+}
+
+function hasLegalTitleSignal(text: string): boolean {
+  return (
+    testPattern(LEGAL_TITLE_HINT, text) ||
+    hasCoreTitleSignal(text) ||
+    hasPolicyNoticeTitleSignal(text)
+  );
+}
+
 export function shouldStartDetection(): boolean {
   const url = location.href;
   const title = document.title ?? '';
-  const hasLegalUrl = LEGAL_URL_HINT.test(url);
-  const hasLegalTitle = LEGAL_TITLE_HINT.test(title);
+  const hasLegalUrl = hasLegalUrlSignal(url);
+  const hasLegalTitle = hasLegalTitleSignal(title);
 
   if (HIGH_CHURN_HOST.test(location.hostname)) {
     return hasLegalUrl || hasLegalTitle;
@@ -240,10 +298,13 @@ function getDetectionContext(): DetectionContext {
 
   return {
     titleContext,
-    hasCoreTitle: CORE_TITLE_PATTERN.test(titleContext),
-    hasPolicyNoticeTitle: POLICY_NOTICE_TITLE_PATTERN.test(titleContext),
-    hasLegalUrl: LEGAL_URL_HINT.test(url),
-    hasPolicyNoticeUrl: /policy|legal|notice|rules|disclaimer|search_policy|spam|youth|cbpr|cert/i.test(url),
+    hasCoreTitle: hasCoreTitleSignal(titleContext),
+    hasPolicyNoticeTitle: hasPolicyNoticeTitleSignal(titleContext),
+    hasLegalUrl: hasLegalUrlSignal(url),
+    hasPolicyNoticeUrl:
+      /policy|legal|notice|rules|disclaimer|search[-_]?policy|spam|youth|cbpr|cert|copyright|trademark|transparency/i.test(
+        url
+      ),
   };
 }
 
@@ -314,7 +375,12 @@ function hasConsentControlContext(el: Element): boolean {
         control.closest('label, li, p, div, section, article, tr') ?? control;
       const text = readLimitedText(scope, 1200);
 
-      if (CONSENT_CONTEXT_PATTERN.test(text)) return true;
+      if (
+        testPattern(CONSENT_CONTEXT_PATTERN, text) ||
+        testPattern(ENGLISH_CONSENT_CONTEXT_PATTERN, text)
+      ) {
+        return true;
+      }
     }
   } catch {
     return false;
@@ -329,7 +395,11 @@ function hasStrongTableSignal(el: Element): boolean {
     const count = Math.min(cells.length, 80);
 
     for (let index = 0; index < count; index += 1) {
-      if (TABLE_HEADER_PATTERN.test(readLimitedText(cells.item(index), 600))) {
+      const text = readLimitedText(cells.item(index), 600);
+      if (
+        testPattern(TABLE_HEADER_PATTERN, text) ||
+        testPattern(ENGLISH_TABLE_HEADER_PATTERN, text)
+      ) {
         return true;
       }
     }
@@ -370,8 +440,8 @@ function collectCandidateElements(context: DetectionContext): Element[] {
     const hasShortTitleSignal =
       context.hasCoreTitle ||
       context.hasPolicyNoticeTitle ||
-      CORE_TITLE_PATTERN.test(text.slice(0, 1600)) ||
-      POLICY_NOTICE_TITLE_PATTERN.test(text.slice(0, 1600));
+      hasCoreTitleSignal(text.slice(0, 1600)) ||
+      hasPolicyNoticeTitleSignal(text.slice(0, 1600));
 
     if (
       text.length < MIN_CANDIDATE_TEXT_LENGTH &&
@@ -442,15 +512,19 @@ function scoreCoreCandidate(
   let score = 0;
   const reasons: string[] = [];
   const topText = text.slice(0, 1600);
-  const termsCount = countMatches(text, TERMS_STRUCTURE_PATTERN);
-  const privacyCount = countMatches(text, PRIVACY_STRUCTURE_PATTERN);
+  const termsCount =
+    countMatches(text, TERMS_STRUCTURE_PATTERN) +
+    countMatches(text, ENGLISH_TERMS_STRUCTURE_PATTERN);
+  const privacyCount =
+    countMatches(text, PRIVACY_STRUCTURE_PATTERN) +
+    countMatches(text, ENGLISH_PRIVACY_STRUCTURE_PATTERN);
   const termsNavigationSignals = countTermsNavigationSignals(el);
 
   if (context.hasCoreTitle) {
     score += 45;
     reasons.push('core_title_context:+45');
   }
-  if (CORE_TITLE_PATTERN.test(topText)) {
+  if (hasCoreTitleSignal(topText)) {
     score += 22;
     reasons.push('core_text_near_top:+22');
   }
@@ -506,16 +580,17 @@ function scorePolicyNoticeCandidate(
   const hasPolicyAnchor =
     context.hasPolicyNoticeTitle ||
     context.hasPolicyNoticeUrl ||
-    POLICY_NOTICE_TITLE_PATTERN.test(topText);
+    hasPolicyNoticeTitleSignal(topText);
   const bodyCount = hasPolicyAnchor
-    ? countMatches(text, POLICY_NOTICE_BODY_PATTERN)
+    ? countMatches(text, POLICY_NOTICE_BODY_PATTERN) +
+      countMatches(text, ENGLISH_POLICY_NOTICE_BODY_PATTERN)
     : 0;
 
   if (context.hasPolicyNoticeTitle) {
     score += 48;
     reasons.push('policy_notice_title_context:+48');
   }
-  if (POLICY_NOTICE_TITLE_PATTERN.test(topText)) {
+  if (hasPolicyNoticeTitleSignal(topText)) {
     score += 24;
     reasons.push('policy_notice_text_near_top:+24');
   }
